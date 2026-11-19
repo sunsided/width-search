@@ -1,11 +1,11 @@
 //! Property tests over random SAS+ tasks: every search returns only valid
-//! plans and none for unsolvable tasks, and BFWS finds one exactly
-//! when the task is solvable.
+//! plans and none for unsolvable tasks, and both BFWS variants find one
+//! exactly when the task is solvable.
 
 use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
-use width_search::{bfws, iterated_width, sas::SasProblem, siw};
+use width_search::{bfws, bfws_r, iterated_width, sas::SasProblem, siw};
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
 /// Conditional effects and derived variables are drawn too, so the adapter
@@ -60,6 +60,20 @@ proptest! {
         prop_assert_eq!(width.is_some(), result.plan.is_some());
         if let Some(plan) = result.plan {
             prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// BFWS with `#r` is complete on finite state spaces too, and its plans
+    /// are valid. Random tasks draw axioms and conditional effects, so this
+    /// also exercises the adapter's relaxed plans.
+    #[test]
+    fn bfws_r_plans_are_valid_and_complete(task in task(), k in 1usize..=2) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let plan = bfws_r(&SasProblem::new(&task), k).plan;
+
+        prop_assert_eq!(plan.is_some(), solvable);
+        if let Some(plan) = plan {
             prop_assert!(task.validate_plan(&plan).is_some());
         }
     }

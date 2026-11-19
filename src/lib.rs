@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
-/// Best-first width search, BFWS(⟨w_{#g}, #g⟩).
+/// Best-first width search: BFWS(⟨w_{#g}, #g⟩) and BFWS(⟨w_{#g,#r}, #g⟩).
 mod bfws;
 /// IW(k) and iterated width.
 mod iw;
@@ -13,7 +13,7 @@ pub mod sas;
 /// Serialized IW: one IW search per achieved goal.
 mod siw;
 
-pub use bfws::bfws;
+pub use bfws::{bfws, bfws_r};
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use siw::siw;
@@ -47,6 +47,16 @@ pub trait WidthProblem {
 pub trait GoalCount: WidthProblem {
     /// Number of goal conditions not yet satisfied (`#g`).
     fn unsatisfied_goals(&self, state: &Self::State) -> usize;
+}
+
+/// Relaxed-plan information used by [`bfws_r`] to compute `#r`.
+pub trait RelaxedPlan: GoalCount {
+    /// Push into `out` the features a relaxed plan from `state` makes true,
+    /// for example the add effects of its actions (LAPKT's choice).
+    ///
+    /// Push nothing when the goal is unreachable even under the relaxation.
+    /// Features already true in `state` are ignored by the search.
+    fn relaxed_plan_features(&self, state: &Self::State, out: &mut Vec<u32>);
 }
 
 /// The outcome of a search: a plan, if one was found, and node counts.
