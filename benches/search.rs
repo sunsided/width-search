@@ -34,7 +34,7 @@ fn load(name: &str) -> Task {
         .parse()
         .expect("fixture parses");
 
-    file.to_task().expect("fixture is a valid task")
+    file.to_task()
 }
 
 /// Iterated width on gripper-2, whose single-atom goal needs width 2.

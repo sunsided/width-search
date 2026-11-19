@@ -17,7 +17,7 @@ fn load(name: &str) -> SasFile {
 fn bfws_solves_the_larger_benchmarks() {
     for name in ["bw-large-a", "logistics-e", "gripper-4", "sussman-anomaly"] {
         let file = load(name);
-        let task = file.to_task().unwrap();
+        let task = file.to_task();
         let r = bfws(&SasProblem::new(&task), 2);
         let plan = r.plan.unwrap_or_else(|| panic!("{name}: no plan"));
         let cost = task
@@ -33,7 +33,7 @@ fn bfws_solves_the_larger_benchmarks() {
 /// only a new pair.
 #[test]
 fn single_atom_goal_has_width_2() {
-    let task = load("gripper-2").to_task().unwrap();
+    let task = load("gripper-2").to_task();
     let (width, r) = iterated_width(&SasProblem::new(&task), 2);
     assert_eq!(width, Some(2));
     assert_eq!(task.validate_plan(&r.plan.unwrap()), Some(3));

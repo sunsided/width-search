@@ -21,7 +21,7 @@ default = []
 sas-plus = ["dep:sas-plus"]
 
 [dependencies]
-sas-plus = { version = "0.1.0", optional = true }
+sas-plus = { version = "0.2.1", optional = true }
 
 [lints.rust]
 missing_docs = "warn"
@@ -46,7 +46,7 @@ private_intra_doc_links = "allow"
 [dev-dependencies]
 criterion = "0.7.0"
 proptest = "1.11.0"
-sas-plus = { version = "0.1.0" }
+sas-plus = { version = "0.2.1" }
 
 [[bench]]
 name = "search"

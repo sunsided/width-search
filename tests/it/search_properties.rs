@@ -7,20 +7,33 @@ use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{bfws, iterated_width, sas::SasProblem};
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
+/// Conditional effects and derived variables are drawn too, so the adapter
+/// is checked on the full task model and not only on plain STRIPS-like tasks.
 fn task() -> impl Strategy<Value = Task> {
-    (any::<u64>(), 1usize..=5, 2u32..=4, 1usize..=12, 1u32..=3).prop_map(
-        |(seed, num_vars, max_domain, num_ops, max_cost)| {
-            random_task(
-                seed,
-                RandomTaskParams {
-                    num_vars,
-                    max_domain,
-                    num_ops,
-                    max_cost,
-                },
-            )
-        },
+    (
+        any::<u64>(),
+        1usize..=5,
+        2u32..=4,
+        1usize..=12,
+        1u32..=3,
+        0usize..=2,
+        0usize..=2,
     )
+        .prop_map(
+            |(seed, num_vars, max_domain, num_ops, max_cost, max_conditions, num_derived)| {
+                random_task(
+                    seed,
+                    RandomTaskParams {
+                        num_vars,
+                        max_domain,
+                        num_ops,
+                        max_cost,
+                        max_conditions,
+                        num_derived,
+                    },
+                )
+            },
+        )
 }
 
 proptest! {

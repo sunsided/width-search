@@ -17,7 +17,7 @@ fn gripper() -> SasFile {
 #[test]
 fn iterated_width_solves_gripper_at_width_3() {
     let file = gripper();
-    let task = file.to_task().unwrap();
+    let task = file.to_task();
     let (width, r) = iterated_width(&SasProblem::new(&task), 3);
     let plan = r.plan.expect("gripper is solvable");
     assert_eq!(width, Some(3));
@@ -30,7 +30,7 @@ fn iterated_width_solves_gripper_at_width_3() {
 /// BFWS(2) returns a valid plan for gripper.
 #[test]
 fn bfws_solves_gripper() {
-    let task = gripper().to_task().unwrap();
+    let task = gripper().to_task();
     let plan = bfws(&SasProblem::new(&task), 2)
         .plan
         .expect("gripper is solvable");

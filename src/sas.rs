@@ -46,7 +46,7 @@ impl WidthProblem for SasProblem<'_> {
     type Action = OpId;
 
     fn initial_state(&self) -> State {
-        self.task.initial.clone()
+        self.task.initial_state()
     }
     fn successors(&self, state: &State, out: &mut Vec<(OpId, State)>) {
         out.extend(
