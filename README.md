@@ -75,7 +75,7 @@ References: Lipovetzky & Geffner, ECAI 2012 and AAAI 2017.
 
 ## MSRV
 
-Rust 1.85 (edition 2024). Raising it is a minor release.
+Rust 1.86. Raising it is a minor release.
 
 ## Contributing
 
