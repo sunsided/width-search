@@ -44,7 +44,7 @@ broken_intra_doc_links = "deny"
 private_intra_doc_links = "allow"
 
 [dev-dependencies]
-criterion = "0.7.0"
+criterion = "0.8.2"
 proptest = "1.11.0"
 sas-plus = { version = "0.1.0" }
 
