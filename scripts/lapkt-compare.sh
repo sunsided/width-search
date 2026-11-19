@@ -30,7 +30,12 @@ for task in gripper-2 sussman-anomaly gripper-4 bw-large-a logistics-e; do
         # shellcheck disable=SC2086 # the planner string holds its own arguments
         out="$(timeout 600 "$python" "$lapkt" $planner \
             -d "$fixtures/$task/domain.pddl" -p "$fixtures/$task/problem.pddl" 2>&1 || true)"
-        field() { grep -m1 -oP "$1\K[0-9.e+]+" <<<"$out" || echo -; }
+        # sed -E, not grep -P, so this also works with BSD/macOS tools.
+        field() {
+            local v
+            v="$(sed -nE "s/.*$1([0-9.e+]+).*/\1/p" <<<"$out" | head -n1)"
+            echo "${v:--}"
+        }
         printf '%-16s %-40s %9s %9s %9s %5s\n' "$task" "$planner" \
             "$(field 'Nodes expanded during search: ')" \
             "$(field 'Nodes generated during search: ')" \
