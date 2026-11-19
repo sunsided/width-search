@@ -1,6 +1,10 @@
+//! Fixed seeds of small random SAS+ tasks, checked against the perfect
+//! heuristic `h*`.
+
 use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{bfws, iterated_width, iw, sas::SasProblem};
 
+/// Small tasks with unit costs, so `h*` is cheap and plan length is cost.
 const PARAMS: RandomTaskParams = RandomTaskParams {
     num_vars: 4,
     max_domain: 3,
@@ -9,7 +13,8 @@ const PARAMS: RandomTaskParams = RandomTaskParams {
 };
 
 /// IW(k) with k = #variables never prunes a new state (its full fact set is a
-/// new k-tuple), so it is complete and, on unit costs, optimal like BrFS.
+/// new k-tuple), so it is complete and, on unit costs, optimal like
+/// breadth-first search.
 #[test]
 fn iw_with_full_width_is_complete_and_optimal() {
     let mut solved = 0;
@@ -32,6 +37,8 @@ fn iw_with_full_width_is_complete_and_optimal() {
     );
 }
 
+/// Both searches find a plan exactly when `h*` says the task is solvable,
+/// and BFWS plans validate.
 #[test]
 fn iterated_width_and_bfws_return_valid_plans() {
     for seed in 0..300 {
