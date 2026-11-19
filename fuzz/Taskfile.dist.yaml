@@ -3,6 +3,10 @@
 version: '3'
 
 vars:
+  # Build for the host's own triple, as CI does: a prebuilt (musl) cargo-fuzz otherwise
+  # defaults to musl, which needs a musl C++ compiler for libfuzzer.
+  FUZZ_TARGET:
+    sh: "rustc -vV | sed -n 's/^host: //p'"
   MAX_TIME: '{{.MAX_TIME | default "10"}}'
 
 tasks:
@@ -20,7 +24,7 @@ tasks:
     desc: Build all fuzz targets
     preconditions: *nightly
     cmds:
-      - cargo +nightly fuzz build
+      - cargo +nightly fuzz build --target {{.FUZZ_TARGET}}
 
   run:
     desc: "Fuzz one target: task fuzz:run TARGET=name -- <libFuzzer flags>"
@@ -28,7 +32,7 @@ tasks:
     requires:
       vars: [TARGET]
     cmds:
-      - cargo +nightly fuzz run {{.TARGET}} -- {{.CLI_ARGS}}
+      - cargo +nightly fuzz run --target {{.FUZZ_TARGET}} {{.TARGET}} -- {{.CLI_ARGS}}
 
   smoke:
     desc: Run every fuzz target for MAX_TIME seconds (default 10)
@@ -37,7 +41,7 @@ tasks:
       - |
         set -e
         for target in $(cargo +nightly fuzz list); do
-          cargo +nightly fuzz run "$target" -- -max_total_time={{.MAX_TIME}}
+          cargo +nightly fuzz run --target {{.FUZZ_TARGET}} "$target" -- -max_total_time={{.MAX_TIME}}
         done
 
   fmt:
