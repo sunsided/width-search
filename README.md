@@ -63,6 +63,19 @@ A grid with a key and a door needs width 2, because the agent revisits cells aft
 cargo run --example key_door         # IW(1) fails, IW(2) succeeds
 ```
 
+## What "width" means
+
+A state's **novelty** is the size of the smallest set of its features that no earlier state in the search had all at once. A state that reaches a never-seen cell has novelty 1. A state whose cell and key flag were each seen before, but never together, has novelty 2.
+
+**IW(k)** is breadth-first search that drops every state with novelty greater than `k`. So it remembers only feature combinations of size up to `k`, and with `n` features there are at most `O(n^k)` of those.
+
+A problem's **width** is, roughly, the smallest `k` for which IW(k) finds a shortest plan. Formally (Lipovetzky & Geffner, 2012), it is the smallest `k` such that a chain of feature sets of size at most `k` leads from the initial state to the goal. Each set in the chain is reached optimally by extending an optimal plan for the previous set by one action. Intuitively, width counts how many facts you must track *jointly* to avoid losing your way:
+
+- Walking a line or reaching a cell on an open grid has width 1. Position alone tells you whether a state is new.
+- The `key_door` example has width 2. After taking the key, the agent walks back over cells it has visited. Position alone calls those states old and IW(1) prunes them. The pair (cell, has key) shows they are new.
+
+Width is a property of the problem *and* of the features you choose. Better features can lower it. Many puzzle and planning domains have width 1 or 2 for a single goal fact, which is why low-`k` searches go so far. Conjunctive goals ("collect every key") usually have higher width, which is the case BFWS handles by also counting satisfied goals (`#g`).
+
 ## How it compares
 
 Classic searches rank states by distance: the cost so far (BFS, Dijkstra), plus an estimate of the cost to go (A*). Width-based search ranks them by **novelty** instead. A state is worth keeping only if it makes some feature value, or some combination of up to `k` feature values, true for the first time. You don't need a heuristic or a distance metric. You only need features, and the search explores "new things" first.
