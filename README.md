@@ -76,6 +76,10 @@ References: Lipovetzky & Geffner, ECAI 2012 and AAAI 2017.
 
 Rust 1.85 (edition 2024). Raising it is a minor release.
 
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/sunsided/width-search/blob/main/CONTRIBUTING.md).
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](https://github.com/sunsided/width-search/blob/main/LICENSES/Apache-2.0.txt) or [MIT license](https://github.com/sunsided/width-search/blob/main/LICENSES/MIT.txt) at your option.
