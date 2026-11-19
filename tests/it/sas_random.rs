@@ -10,6 +10,8 @@ const PARAMS: RandomTaskParams = RandomTaskParams {
     max_domain: 3,
     num_ops: 10,
     max_cost: 1,
+    max_conditions: 0,
+    num_derived: 0,
 };
 
 /// IW(k) with k = #variables never prunes a new state (its full fact set is a
