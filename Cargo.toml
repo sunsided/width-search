@@ -1,6 +1,6 @@
 [package]
 name = "width-search"
-description = "Width-based search: novelty tables, Iterated Width (IW), and Best-First Width Search (BFWS)"
+description = "Width-based search: novelty tables, Iterated Width (IW), Serialized IW, Best-First Width Search (BFWS), and Rollout IW"
 version = "0.1.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"

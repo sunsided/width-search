@@ -5,6 +5,19 @@ use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
 /// IW(k): breadth-first search that prunes every generated state whose
 /// novelty exceeds `k`. Runs in `O(n^k)` expansions for `n` features.
 pub fn iw<P: WidthProblem>(problem: &P, k: usize) -> SearchResult<P::Action> {
+    iw_from(problem, problem.initial_state(), k, |s| problem.is_goal(s)).0
+}
+
+/// IW(k) from `root` towards the states accepted by `is_goal`.
+///
+/// Returns the result and, if a plan was found, the state it ends in. Goal
+/// states are never pruned, whatever their novelty.
+pub(crate) fn iw_from<P: WidthProblem>(
+    problem: &P,
+    root: P::State,
+    k: usize,
+    is_goal: impl Fn(&P::State) -> bool,
+) -> (SearchResult<P::Action>, Option<P::State>) {
     let mut table = NoveltyTable::new(problem.num_features(), k);
     let mut feats = Vec::new();
     let mut succ = Vec::new();
@@ -14,13 +27,13 @@ pub fn iw<P: WidthProblem>(problem: &P, k: usize) -> SearchResult<P::Action> {
         generated: 1,
     };
 
-    let root = problem.initial_state();
     problem.features(&root, &mut feats);
     table.evaluate_and_insert(&feats);
-    if problem.is_goal(&root) {
+    if is_goal(&root) {
         result.plan = Some(Vec::new());
-        return result;
+        return (result, Some(root));
     }
+
     let mut nodes = vec![Node {
         state: root,
         parent: None,
@@ -34,12 +47,13 @@ pub fn iw<P: WidthProblem>(problem: &P, k: usize) -> SearchResult<P::Action> {
         problem.successors(&nodes[i].state, &mut succ);
         for (action, state) in succ.drain(..) {
             result.generated += 1;
-            let goal = problem.is_goal(&state);
+            let goal = is_goal(&state);
             feats.clear();
             problem.features(&state, &mut feats);
             if table.evaluate_and_insert(&feats).is_none() && !goal {
                 continue;
             }
+
             nodes.push(Node {
                 state,
                 parent: Some(i),
@@ -48,12 +62,14 @@ pub fn iw<P: WidthProblem>(problem: &P, k: usize) -> SearchResult<P::Action> {
             let j = nodes.len() - 1;
             if goal {
                 result.plan = Some(extract_plan(&nodes, j));
-                return result;
+                return (result, Some(nodes.swap_remove(j).state));
             }
+
             open.push_back(j);
         }
     }
-    result
+
+    (result, None)
 }
 
 /// Runs IW(1), IW(2), ... up to `max_k`; returns the width that succeeded

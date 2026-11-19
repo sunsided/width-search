@@ -1,10 +1,11 @@
-//! Property tests over random SAS+ tasks: IW and BFWS return only valid
-//! plans, and BFWS finds one exactly when the task is solvable.
+//! Property tests over random SAS+ tasks: every search returns only valid
+//! plans and none for unsolvable tasks, and both BFWS variants find one
+//! exactly when the task is solvable.
 
 use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
-use width_search::{bfws, iterated_width, sas::SasProblem};
+use width_search::{bfws, bfws_r, iterated_width, rollout_iw, sas::SasProblem, siw};
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
 /// Conditional effects and derived variables are drawn too, so the adapter
@@ -58,6 +59,50 @@ proptest! {
 
         prop_assert_eq!(width.is_some(), result.plan.is_some());
         if let Some(plan) = result.plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// BFWS with `#r` is complete on finite state spaces too, and its plans
+    /// are valid. Random tasks draw axioms and conditional effects, so this
+    /// also exercises the adapter's relaxed plans.
+    #[test]
+    fn bfws_r_plans_are_valid_and_complete(task in task(), k in 1usize..=2) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let plan = bfws_r(&SasProblem::new(&task), k).plan;
+
+        prop_assert_eq!(plan.is_some(), solvable);
+        if let Some(plan) = plan {
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// SIW may give up, but any plan it returns is valid, and none is
+    /// returned for an unsolvable task.
+    #[test]
+    fn siw_plans_are_valid(task in task(), max_k in 1usize..=2) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let plan = siw(&SasProblem::new(&task), max_k).plan;
+
+        if let Some(plan) = plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// Rollout IW terminates, returns only valid plans and none for an
+    /// unsolvable task, and the same seed gives the same result.
+    #[test]
+    fn rollout_iw_plans_are_valid_and_seeded(task in task(), seed in any::<u64>()) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let problem = SasProblem::new(&task);
+        let r = rollout_iw(&problem, seed);
+        let again = rollout_iw(&problem, seed);
+
+        prop_assert_eq!(&r.plan, &again.plan);
+        prop_assert_eq!((r.expanded, r.generated), (again.expanded, again.generated));
+        if let Some(plan) = r.plan {
             prop_assert!(solvable);
             prop_assert!(task.validate_plan(&plan).is_some());
         }
