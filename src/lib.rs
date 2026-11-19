@@ -3,11 +3,14 @@
 //!
 //! Independent of PDDL: anything that can enumerate successors and describe
 //! a state as a set of integer features (planning atoms, RAM bytes, grid
-//! cells, ...) implements [`WidthProblem`].
+//! cells, ...) implements [`WidthProblem`]. Enable the `sas-plus` feature for
+//! a ready-made adapter over [`sas_plus::Task`].
 
 mod bfws;
 mod iw;
 mod novelty;
+#[cfg(feature = "sas-plus")]
+pub mod sas;
 
 pub use bfws::bfws;
 pub use iw::{iterated_width, iw};
