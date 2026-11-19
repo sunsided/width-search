@@ -33,7 +33,8 @@ for task in gripper-2 sussman-anomaly gripper-4 bw-large-a logistics-e; do
         # sed -E, not grep -P, so this also works with BSD/macOS tools.
         field() {
             local v
-            v="$(sed -nE "s/.*$1([0-9.e+]+).*/\1/p" <<<"$out" | head -n1)"
+            # Quit after the first match: no `| head`, so no SIGPIPE under pipefail.
+            v="$(sed -nE "/$1[0-9]/{s/.*$1([0-9.e+]+).*/\1/p;q;}" <<<"$out")"
             echo "${v:--}"
         }
         printf '%-16s %-40s %9s %9s %9s %5s\n' "$task" "$planner" \
