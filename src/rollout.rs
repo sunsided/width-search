@@ -123,7 +123,7 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
             }
 
             let Some(child) = self.pick_unsolved_child(n) else {
-                // No successors at all: a dead end.
+                // No unsolved children: nothing left to explore below n.
                 self.solve(n);
                 return None;
             };
@@ -136,7 +136,7 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         }
     }
 
-    /// Generates the children of `n`; returns a goal child if there is one.
+    /// Generates all children of `n`; returns the first goal child, if any.
     fn expand(&mut self, n: usize) -> Option<usize> {
         self.result.expanded += 1;
         let mut succ = std::mem::take(&mut self.succ);
@@ -149,10 +149,10 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         for (action, state) in succ.drain(..) {
             self.result.generated += 1;
             let is_goal = self.problem.is_goal(&state);
-            children.push(self.push(state, Some(n), Some(action), depth));
+            let child = self.push(state, Some(n), Some(action), depth);
+            children.push(child);
             if is_goal {
-                goal = children.last().copied();
-                break;
+                goal.get_or_insert(child);
             }
         }
 

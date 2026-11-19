@@ -62,7 +62,7 @@ pub(crate) fn iw_from<P: WidthProblem>(
             let j = nodes.len() - 1;
             if goal {
                 result.plan = Some(extract_plan(&nodes, j));
-                return (result, nodes.pop().map(|n| n.state));
+                return (result, Some(nodes.swap_remove(j).state));
             }
 
             open.push_back(j);

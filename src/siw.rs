@@ -17,7 +17,8 @@ use crate::{GoalCount, SearchResult};
 /// one that must be undone later, which gives longer plans (blocksworld).
 ///
 /// SIW is incomplete: it gives up (`plan: None`) when no subgoal is reachable
-/// within width `max_k`, which includes dead ends left by earlier subplans.
+/// within width `max_k`. That happens in dead ends left by earlier subplans,
+/// but also in live states whose next subgoal needs a width above `max_k`.
 /// Node counts add up over all IW runs, failed ones included.
 pub fn siw<P: GoalCount>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
     // The initial state counts once, even if no IW run is needed.
@@ -26,12 +27,12 @@ pub fn siw<P: GoalCount>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
         expanded: 0,
         generated: 0,
     };
-    if problem.is_goal(&problem.initial_state()) {
+    let mut state = problem.initial_state();
+    if problem.is_goal(&state) {
         total.generated = 1;
     }
 
     let mut plan = Vec::new();
-    let mut state = problem.initial_state();
 
     while !problem.is_goal(&state) {
         let Some((subplan, next)) = reach_subgoal(problem, &state, max_k, &mut total) else {
