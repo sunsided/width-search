@@ -83,8 +83,8 @@ Classic searches rank states by distance: the cost so far (BFS, Dijkstra), plus 
 | Algorithm       | Needs                                 | Optimal?                                                  | Memory / cost                         | Shines when                                                           |
 |-----------------|---------------------------------------|-----------------------------------------------------------|---------------------------------------|-----------------------------------------------------------------------|
 | BFS             | successors                            | yes, unit costs                                           | whole reachable space                 | small state spaces                                                    |
-| Dijkstra        | successors, edge costs                | yes                                                       | whole reachable space                 | weighted graphs, no good heuristic                                    |
-| A*              | successors, costs, admissible heuristic | yes                                                     | grows with heuristic error            | pathfinding on maps, where distance heuristics are good               |
+| Dijkstra        | successors, non-negative edge costs   | yes                                                       | whole reachable space                 | weighted graphs, no good heuristic                                    |
+| A*              | successors, non-negative costs, admissible heuristic (consistent when it keeps a closed set) | yes | grows with heuristic error            | pathfinding on maps, where distance heuristics are good               |
 | Greedy best-first | successors, heuristic               | no                                                        | heuristic-dependent                   | fast "any plan" with an informative heuristic                         |
 | MCTS            | simulator, reward / rollout policy    | no (anytime)                                              | tree of visited nodes                 | adversarial or stochastic games, large branching                      |
 | **IW(k)**       | successors, features                  | shortest plan (unit costs) if the problem's width is ≤ k | at most `O(n^k)` expansions for `n` features | huge state spaces with low width, no heuristic available        |
@@ -115,7 +115,7 @@ Good fits:
 
 Poor fits:
 
-- Shortest paths on a weighted grid or navmesh. A* (or JPS) is faster and optimal there.
+- Shortest paths on a weighted grid or navmesh. A* is faster and optimal there (or JPS on uniform-cost grids).
 - Opponent moves, chance, or continuous physics without a discrete feature encoding.
 
 ## Features
@@ -126,7 +126,7 @@ Poor fits:
 
 **Roadmap:** SIW, BFWS with `#r`, Rollout IW, node-count comparison against LAPKT.
 
-References: Lipovetzky & Geffner, ECAI 2012 and AAAI 2017.
+References: Lipovetzky & Geffner, ECAI 2012 and AAAI 2017; Lipovetzky, Ramirez & Geffner, IJCAI 2015.
 
 ## MSRV
 
