@@ -7,15 +7,32 @@ use std::collections::HashSet;
 /// (`n` and `n(n-1)/2` bits); larger sizes fall back to hashing.
 #[derive(Clone, Debug)]
 pub struct NoveltyTable {
+    /// Width bound: the largest tuple size recorded. At least 1.
     k: usize,
+    /// Number of features; every feature id is below it.
     n: usize,
+    /// Seen single features, indexed by feature id.
     seen1: Vec<bool>,
+    /// Seen pairs as a bitset over [`NoveltyTable::pair_index`]; empty when `k < 2`.
     seen2: Vec<u64>,
+    /// Seen tuples of size 3 to `k`, each sorted ascending.
     seen_hi: HashSet<Vec<u32>>,
+    /// Reused buffer for the sorted, deduplicated features of the current state.
     scratch: Vec<u32>,
 }
 
 impl NoveltyTable {
+    /// Creates an empty table for features `0..num_features` and tuples up to size `k`.
+    ///
+    /// Memory is `num_features` bools plus, for `k >= 2`, a bitset of
+    /// `num_features * (num_features - 1) / 2` pairs. For `k >= 3`, every distinct
+    /// tuple of size 3 to `k` seen so far is also kept in a hash set, which grows
+    /// with the explored states rather than with `num_features`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `k` is 0.
+    #[must_use]
     pub fn new(num_features: usize, k: usize) -> Self {
         assert!(k >= 1, "width bound must be at least 1");
         let pair_bits = if k >= 2 {
@@ -33,12 +50,21 @@ impl NoveltyTable {
         }
     }
 
+    /// The width bound `k` this table was created with.
+    #[must_use]
     pub fn width_bound(&self) -> usize {
         self.k
     }
 
     /// Returns the novelty of a state with the given features (`None` if it
     /// exceeds `k`), and records all of its tuples of size `<= k`.
+    ///
+    /// Duplicate features are ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a feature is not below the `num_features` given to
+    /// [`NoveltyTable::new`].
     pub fn evaluate_and_insert(&mut self, features: &[u32]) -> Option<usize> {
         let mut feats = std::mem::take(&mut self.scratch);
         feats.clear();
@@ -54,6 +80,7 @@ impl NoveltyTable {
                 novelty.get_or_insert(1);
             }
         }
+
         if self.k >= 2 {
             for (i, &a) in feats.iter().enumerate() {
                 for &b in &feats[i + 1..] {
@@ -66,12 +93,14 @@ impl NoveltyTable {
                 }
             }
         }
+
         for size in 3..=self.k.min(feats.len()) {
             let mut tuple = Vec::with_capacity(size);
             if insert_combinations(&feats, size, 0, &mut tuple, &mut self.seen_hi) {
                 novelty.get_or_insert(size);
             }
         }
+
         self.scratch = feats;
         novelty
     }
@@ -94,6 +123,7 @@ fn insert_combinations(
     if tuple.len() == size {
         return seen.insert(tuple.clone());
     }
+
     let mut any_new = false;
     let needed = size - tuple.len();
     for i in start..=feats.len() - needed {
@@ -101,6 +131,7 @@ fn insert_combinations(
         any_new |= insert_combinations(feats, size, i + 1, tuple, seen);
         tuple.pop();
     }
+
     any_new
 }
 

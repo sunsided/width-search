@@ -3,6 +3,7 @@
 use sas_plus::fdr::SasFile;
 use width_search::{bfws, iterated_width, sas::SasProblem};
 
+/// Parses the hand-encoded gripper task (`tests/fixtures/gripper-unit/output.sas`).
 fn gripper() -> SasFile {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -26,6 +27,7 @@ fn iterated_width_solves_gripper_at_width_3() {
     print!("{}", file.format_plan(&plan));
 }
 
+/// BFWS(2) returns a valid plan for gripper.
 #[test]
 fn bfws_solves_gripper() {
     let task = gripper().to_task().unwrap();

@@ -3,6 +3,7 @@
 use sas_plus::fdr::SasFile;
 use width_search::{bfws, iterated_width, sas::SasProblem};
 
+/// Parses `tests/fixtures/translated/<name>/output.sas`.
 fn load(name: &str) -> SasFile {
     let path = format!(
         "{}/tests/fixtures/translated/{name}/output.sas",
@@ -11,6 +12,7 @@ fn load(name: &str) -> SasFile {
     std::fs::read_to_string(path).unwrap().parse().unwrap()
 }
 
+/// BFWS(2) returns a valid plan on each of the larger translated tasks.
 #[test]
 fn bfws_solves_the_larger_benchmarks() {
     for name in ["bw-large-a", "logistics-e", "gripper-4", "sussman-anomaly"] {

@@ -1,0 +1,213 @@
+# https://taskfile.dev
+# Keep `ci` in sync with .github/workflows/ci.yml: same checks, same flags.
+version: '3'
+
+includes:
+  fuzz:
+    taskfile: fuzz/Taskfile.dist.yaml
+    dir: fuzz
+    optional: true
+
+vars:
+  # Prefer cargo-nextest when installed; fall back to cargo test.
+  NEXTEST:
+    sh: cargo nextest --version >/dev/null 2>&1 && echo yes || echo no
+  # Branching model checked by lint:branch: github (main + feature/) or gitflow.
+  BRANCH_FLOW: github
+
+env:
+  # Newer nextest fails when a crate has no tests; warn instead (ignored by older versions).
+  NEXTEST_NO_TESTS: warn
+
+tasks:
+  default:
+    cmds:
+      - task --list --sort=none
+    silent: true
+
+  build:
+    desc: Build all targets in the workspace, then the fuzz targets
+    cmds:
+      - cargo build --workspace --all-targets --all-features {{.CLI_ARGS}}
+      # Verify the fuzz targets still compile against the library (needs nightly).
+      - task: fuzz:build
+
+  test:
+    desc: Run tests (nextest if installed, cargo test otherwise), then doctests
+    cmds:
+      - cmd: cargo nextest run --workspace --all-features {{.CLI_ARGS}}
+        if: '[ "{{.NEXTEST}}" = "yes" ]'
+      - cmd: cargo test --workspace --all-targets --all-features {{.CLI_ARGS}}
+        if: '[ "{{.NEXTEST}}" = "no" ]'
+      - task: test:doc
+
+  test:doc:
+    desc: Run doctests (nextest does not run them)
+    aliases: [test:docs]
+    cmds:
+      - cargo test --workspace --all-features --doc
+
+  test:prop:
+    desc: Run property tests with a high case count (PROPTEST_CASES, default 10000)
+    env:
+      PROPTEST_CASES: '{{.PROPTEST_CASES | default "10000"}}'
+    cmds:
+      # A nested `task` process inherits env; `task: test` would not.
+      - task test
+
+  fmt:
+    desc: Format all Rust sources
+    aliases: [format]
+    cmds:
+      - cargo fmt --all
+      - task: fuzz:fmt
+
+  fmt:check:
+    desc: Check formatting without modifying files
+    cmds:
+      - cargo fmt --all --check
+
+  lint:
+    desc: Run all linters
+    cmds:
+      - task: lint:clippy
+      - task: lint:separators
+      - task: lint:readme
+      - task: lint:typos
+      - task: lint:actions
+
+  check:
+    desc: Fast static checks (format check and clippy), no tests
+    cmds:
+      - task: fmt:check
+      - task: lint:clippy
+
+  lint:clippy:
+    desc: Clippy (pedantic, warnings as errors)
+    cmds:
+      - cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  lint:fix:
+    desc: Auto-fix clippy findings and typos, then format (review the diff)
+    aliases: [fix]
+    cmds:
+      - cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged
+      - typos --write-changes
+      - task: fmt
+
+  lint:separators:
+    desc: Fail on `// ----` style separator comments (split the file into modules instead)
+    cmds:
+      - "! grep -rnE --include='*.rs' --exclude-dir=target --exclude-dir=.git '^[[:space:]]*//+[[:space:]]*[-=*#~_/]{4,}' ."
+
+  lint:readme:
+    desc: Fail on relative links or images in README files (crates.io needs absolute URLs)
+    cmds:
+      # `if` instead of `! a | b`: Task's shell does not negate pipelines like bash does.
+      - |
+        if grep -rnoE --include='README.md' --exclude-dir=target --exclude-dir=.git '(\]\(|src=")[^)"]*' . \
+          | grep -vE ':(\]\(|src=")(https?://|#|mailto:)'; then
+          echo "use absolute URLs for these links (crates.io renders READMEs outside GitHub)"
+          exit 1
+        fi
+
+  lint:typos:
+    desc: Spell-check code and docs
+    preconditions:
+      - sh: command -v typos
+        msg: "typos not found - cargo install --locked typos-cli"
+    cmds:
+      - typos
+
+  lint:branch:
+    desc: Check the branch name against the branching model (BRANCH=..., default current)
+    cmds:
+      - sh scripts/check-branch.sh "{{.BRANCH}}" "{{.BRANCH_FLOW}}"
+
+  lint:actions:
+    desc: Lint GitHub Actions workflows (actionlint + zizmor)
+    preconditions:
+      - sh: command -v actionlint
+        msg: "actionlint not found - https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+      - sh: command -v zizmor
+        msg: "zizmor not found - https://docs.zizmor.sh/installation/"
+    cmds:
+      - actionlint
+      - zizmor .github/
+
+  doc:
+    desc: Build docs including private items, warnings as errors
+    aliases: [docs]
+    env:
+      RUSTDOCFLAGS: -D warnings
+    cmds:
+      - cargo doc --workspace --all-features --no-deps --document-private-items
+
+  doc:open:
+    desc: Build the docs and open them in a browser
+    aliases: [docs:open]
+    env:
+      RUSTDOCFLAGS: -D warnings
+    cmds:
+      - cargo doc --workspace --all-features --no-deps --document-private-items --open
+
+  deny:
+    desc: Check advisories, licenses, bans and sources
+    preconditions:
+      - sh: cargo deny --version
+        msg: "cargo-deny not found - cargo install --locked cargo-deny"
+    cmds:
+      - cargo deny --all-features check
+
+  msrv:
+    desc: Check every crate on its declared rust-version
+    preconditions:
+      - sh: cargo hack --version
+        msg: "cargo-hack not found - cargo install --locked cargo-hack"
+    cmds:
+      - cargo hack check --rust-version --workspace --all-targets --ignore-private
+
+  semver:
+    desc: Check published library crates for semver violations
+    preconditions:
+      - sh: cargo semver-checks --version
+        msg: "cargo-semver-checks not found - cargo install --locked cargo-semver-checks"
+    cmds:
+      - cargo semver-checks --workspace
+
+  coverage:
+    desc: Coverage report (lcov.info, gitignored; HTML with -- --html)
+    preconditions:
+      - sh: cargo llvm-cov --version
+        msg: "cargo-llvm-cov not found - cargo install --locked cargo-llvm-cov"
+    cmds:
+      - cmd: cargo llvm-cov nextest --workspace --all-features --lcov --output-path lcov.info {{.CLI_ARGS}}
+        if: '[ "{{.NEXTEST}}" = "yes" ]'
+      - cmd: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info {{.CLI_ARGS}}
+        if: '[ "{{.NEXTEST}}" = "no" ]'
+
+  bench:
+    desc: "Run benchmarks (criterion flags after --: task bench -- --quick)"
+    cmds:
+      # --bench '*': only [[bench]] targets (--benches would include lib harnesses that reject criterion flags).
+      - cargo bench --workspace --all-features --bench '*' -- {{.CLI_ARGS}}
+
+  ci:
+    desc: Run the CI checks locally (mirrors .github/workflows/ci.yml)
+    cmds:
+      - task: lint:branch
+      - task: fmt:check
+      - task: lint
+      - task: doc
+      - task: test
+      - task: deny
+      - task: msrv
+      - task: fuzz:build
+      - task: fuzz:lint
+
+  clean:
+    desc: Remove build output, including fuzz builds (keeps fuzz corpora and crash artifacts)
+    cmds:
+      - cargo clean
+      - task: fuzz:clean
+      - rm -f lcov.info

@@ -5,13 +5,20 @@ use sas_plus::{OpId, State, Task};
 
 use crate::{GoalCount, WidthProblem};
 
+/// A [`Task`] viewed as a [`WidthProblem`]: one feature per fact `var = value`,
+/// and the number of unsatisfied goal facts as `#g`.
 pub struct SasProblem<'a> {
+    /// The wrapped task.
     task: &'a Task,
+    /// Feature id of `var = 0` for each variable; `var = v` is `offsets[var] + v`.
     offsets: Vec<u32>,
+    /// Total number of facts, the sum of all domain sizes.
     num_facts: usize,
 }
 
 impl<'a> SasProblem<'a> {
+    /// Wraps `task`, numbering its facts variable by variable.
+    #[must_use]
     pub fn new(task: &'a Task) -> Self {
         let mut offsets = Vec::with_capacity(task.num_variables());
         let mut n = 0u32;
@@ -19,6 +26,7 @@ impl<'a> SasProblem<'a> {
             offsets.push(n);
             n += v.domain_size;
         }
+
         Self {
             task,
             offsets,
@@ -26,6 +34,8 @@ impl<'a> SasProblem<'a> {
         }
     }
 
+    /// The wrapped task, for validating or printing plans.
+    #[must_use]
     pub fn task(&self) -> &Task {
         self.task
     }

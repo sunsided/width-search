@@ -1,0 +1,57 @@
+# Lints the workflows themselves.
+name: GitHub Actions lint
+
+# No path filters: a path-filtered workflow cannot be a required status check.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # install-action no longer ships actionlint; fetch the release binary and verify it.
+      # To bump: change the version and take the sha256 from the release's checksums.txt.
+      # The linux_amd64 asset matches ubuntu-latest; change it with the runner.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 --max-time 60 "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          bin="${RUNNER_TEMP}/actionlint-bin"
+          mkdir -p "${bin}"
+          tar -xzf "${archive}" -C "${bin}" actionlint
+          echo "${bin}" >> "${GITHUB_PATH}"
+      - run: actionlint -color
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Blocking mode: findings fail the job. For SARIF in the Security tab instead,
+      # drop advanced-security and add `security-events: write` (findings then stop failing the job).
+      - uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          advanced-security: false
