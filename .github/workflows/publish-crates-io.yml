@@ -1,7 +1,7 @@
 # Publishes a crate when release-plz pushes its tag (vX.Y.Z, or <crate>-vX.Y.Z in multi-crate repos).
-# Runs in the `crates-io` environment, which only allows v*.*.* / *-v*.*.* tags (docs/github.md).
+# Runs in the `crates-io` environment, which only allows v*.*.* / *-v*.*.* tags.
 # crates.io trusted publishing is bound to this file name and environment: do not rename either.
-# No: Cargo.lock is not tracked (local sas-plus patch), so builds resolve fresh.
+# No --locked: Cargo.lock is not tracked (local sas-plus patch), so builds resolve fresh.
 name: Publish
 
 on:
@@ -75,13 +75,22 @@ jobs:
       - name: Skip versions that are already on crates.io
         id: check
         # The first release of a crate is published by hand, and re-runs must be harmless.
+        # Only 404 means "not published"; anything else (429, 5xx, network) stops the run.
         run: |
-          status="$(curl -s -o /dev/null -w '%{http_code}' -A "$GITHUB_REPOSITORY publish workflow" \
-            "https://crates.io/api/v1/crates/$CRATE/$VERSION")"
-          if [ "$status" = 200 ]; then
-            echo "::notice::$CRATE $VERSION is already on crates.io; nothing to publish"
-            echo "published=true" >> "$GITHUB_OUTPUT"
-          fi
+          status="$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 --max-time 30 \
+            -A "$GITHUB_REPOSITORY publish workflow" \
+            "https://crates.io/api/v1/crates/$CRATE/$VERSION")" || true
+          case "$status" in
+            200)
+              echo "::notice::$CRATE $VERSION is already on crates.io; nothing to publish"
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404) ;;
+            *)
+              echo "::error::crates.io answered $status for $CRATE $VERSION; re-run later"
+              exit 1
+              ;;
+          esac
         env:
           CRATE: ${{ steps.crate.outputs.name }}
           VERSION: ${{ steps.crate.outputs.version }}
