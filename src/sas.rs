@@ -1,6 +1,8 @@
 //! Adapter: run width-based search directly on a [`sas_plus::Task`].
 //! Features are the task's facts `var = value`; plans are operator ids.
 
+use std::sync::OnceLock;
+
 use sas_plus::{Fact, OpId, State, Task};
 
 use crate::{GoalCount, RelaxedPlan, WidthProblem};
@@ -15,7 +17,8 @@ pub struct SasProblem<'a> {
     /// Total number of facts, the sum of all domain sizes.
     num_facts: usize,
     /// The task's effects and axioms as delete-free rules, for relaxed plans.
-    rules: Vec<Rule>,
+    /// Built on first use, so searches without relaxed plans never pay for it.
+    rules: OnceLock<Vec<Rule>>,
 }
 
 /// A delete-free rule `conditions → head`: one effect of an operator (its
@@ -42,8 +45,25 @@ impl<'a> SasProblem<'a> {
             n += v.domain_size;
         }
 
-        let fact = |f: &Fact| offsets[f.var] + f.value;
-        let effects = task
+        Self {
+            task,
+            offsets,
+            num_facts: n as usize,
+            rules: OnceLock::new(),
+        }
+    }
+
+    /// The delete-free rules, built on the first call.
+    fn rules(&self) -> &[Rule] {
+        self.rules.get_or_init(|| self.build_rules())
+    }
+
+    /// One rule per operator effect (precondition plus effect conditions)
+    /// and one per axiom.
+    fn build_rules(&self) -> Vec<Rule> {
+        let fact = |f: &Fact| self.feature(f);
+        let effects = self
+            .task
             .operators
             .iter()
             .enumerate()
@@ -56,19 +76,14 @@ impl<'a> SasProblem<'a> {
                 cost: u64::from(op.cost),
             })
             .collect();
-        rules.extend(task.axioms.iter().map(|a| Rule {
+        rules.extend(self.task.axioms.iter().map(|a| Rule {
             conditions: a.conditions.iter().map(fact).collect(),
             head: fact(&a.head),
             op: None,
             cost: 0,
         }));
 
-        Self {
-            task,
-            offsets,
-            num_facts: n as usize,
-            rules,
-        }
+        rules
     }
 
     /// Feature id of `fact`.
@@ -92,7 +107,7 @@ impl<'a> SasProblem<'a> {
         let mut changed = true;
         while changed {
             changed = false;
-            for (i, rule) in self.rules.iter().enumerate() {
+            for (i, rule) in self.rules().iter().enumerate() {
                 let Some(pre) = rule
                     .conditions
                     .iter()
@@ -183,7 +198,7 @@ impl RelaxedPlan for SasProblem<'_> {
             let Some(r) = supporter[f as usize] else {
                 continue;
             };
-            let rule = &self.rules[r];
+            let rule = &self.rules()[r];
             if let Some(op) = rule.op {
                 ops[op] = true;
             }
