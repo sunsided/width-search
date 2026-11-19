@@ -27,6 +27,11 @@ commit_parsers = [
   { message = "^(Merge|Release|Bump version)\\b", skip = true },
   # Dependabot subjects carry an ecosystem prefix (.github/dependabot.yml).
   { message = "^Actions: ", skip = true },
+  # Repository infrastructure (CI, tooling, lints, test scaffolding) is not user-facing.
+  { message = "(?i)\\b(CI|workflows?|Taskfile|Dependabot|cargo-deny|typos|Codecov|coverage|actionlint|zizmor|release-plz|release PRs?|hooks?|Copilot|CONTRIBUTING|REUSE|fuzz|benchmarks?|badges?|commit-msg|clippy|lints?|changelog|publish(ing)?|tests?)\\b", skip = true },
+  { message = "^Initial commit$", skip = true },
+  # Anything else can opt out with a "Changelog: skip" line in the commit body.
+  { body = "(?m)^Changelog: skip$", skip = true },
   { message = "^(Add|Introduce|Support|Allow|Implement|Expose)\\b", group = "Added" },
   { message = "^(Fix|Correct|Resolve|Prevent|Repair)\\b", group = "Fixed" },
   { message = "^Deprecate\\b", group = "Deprecated" },

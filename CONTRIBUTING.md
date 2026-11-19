@@ -72,6 +72,8 @@ works on them.
   a blank line and a body that explains *why*. The `commit-msg` hook checks the subject.
 - The changelog groups commits by their leading verb (Add, Fix, Remove, Deprecate, ...).
   Write a `BREAKING CHANGE:` line in the body for incompatible changes.
+- Commits about CI, tooling, lints or tests stay out of the changelog automatically. Add a
+  `Changelog: skip` line to the body of any other commit that users need not hear about.
 - PRs are merged with a merge commit, or squashed using the PR title and description. Write
   both with care. Head branches are deleted after the merge.
 - Keep PRs focused. CI must be green.
