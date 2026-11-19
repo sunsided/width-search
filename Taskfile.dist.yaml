@@ -107,7 +107,7 @@ tasks:
       - |
         if grep -rnoE --include='README.md' --exclude-dir=target --exclude-dir=.git '(\]\(|src=")[^)"]*' . \
           | grep -vE ':(\]\(|src=")(https?://|#|mailto:)'; then
-          echo "use absolute URLs for these links (docs/readme.md)"
+          echo "use absolute URLs for these links (crates.io renders READMEs outside GitHub)"
           exit 1
         fi
 
