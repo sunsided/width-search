@@ -5,9 +5,11 @@
 //! a state as a set of integer features (planning atoms, RAM bytes, grid
 //! cells, ...) implements [`WidthProblem`].
 
+mod bfws;
 mod iw;
 mod novelty;
 
+pub use bfws::bfws;
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 
@@ -22,6 +24,12 @@ pub trait WidthProblem {
     fn features(&self, state: &Self::State, out: &mut Vec<u32>);
     fn num_features(&self) -> usize;
     fn is_goal(&self, state: &Self::State) -> bool;
+}
+
+/// Goal-directed information used by BFWS.
+pub trait GoalCount: WidthProblem {
+    /// Number of goal conditions not yet satisfied (`#g`).
+    fn unsatisfied_goals(&self, state: &Self::State) -> usize;
 }
 
 #[derive(Clone, Debug)]
