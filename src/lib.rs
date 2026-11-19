@@ -10,10 +10,13 @@ mod novelty;
 /// Adapter that runs width-based search on a [`sas_plus::Task`].
 #[cfg(feature = "sas-plus")]
 pub mod sas;
+/// Serialized IW: one IW search per achieved goal.
+mod siw;
 
 pub use bfws::bfws;
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
+pub use siw::siw;
 
 /// A search problem described by successors and integer features.
 ///
