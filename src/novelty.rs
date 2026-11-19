@@ -24,7 +24,10 @@ pub struct NoveltyTable {
 impl NoveltyTable {
     /// Creates an empty table for features `0..num_features` and tuples up to size `k`.
     ///
-    /// Memory is `num_features` bools plus, for `k >= 2`, `num_features²/2` bits.
+    /// Memory is `num_features` bools plus, for `k >= 2`, a bitset of
+    /// `num_features * (num_features - 1) / 2` pairs. For `k >= 3`, every distinct
+    /// tuple of size 3 to `k` seen so far is also kept in a hash set, which grows
+    /// with the explored states rather than with `num_features`.
     ///
     /// # Panics
     ///
