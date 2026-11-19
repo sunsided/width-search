@@ -7,8 +7,8 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 repository = "https://github.com/sunsided/width-search"
 readme = "README.md"
-# GPL-2.0 / Apache-2.0 test inputs; see tests/fixtures/README.md
-exclude = ["tests/fixtures"]
+# GPL-2.0-or-later / Apache-2.0 test inputs and the GPL text; see tests/fixtures/README.md
+exclude = ["tests/fixtures", "LICENSES/GPL-2.0-or-later.txt"]
 
 [features]
 default = []

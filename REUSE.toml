@@ -1,0 +1,47 @@
+version = 1
+
+# Default: everything under the project license expression.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Markus Mayer"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
+# Examples are public domain so readers can copy them freely.
+[[annotations]]
+path = "examples/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Markus Mayer"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Test inputs from VHPOP's examples and the translator output derived from them.
+[[annotations]]
+path = [
+  "tests/fixtures/translated/bw-large-a/**",
+  "tests/fixtures/translated/sussman-anomaly/**",
+  "tests/fixtures/translated/gripper-2/**",
+  "tests/fixtures/translated/gripper-4/**",
+  "tests/fixtures/translated/logistics-e/domain.pddl",
+  "tests/fixtures/translated/COPYING.vhpop",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2002-2005 Carnegie Mellon University"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Test input from Potoroo's examples.
+[[annotations]]
+path = [
+  "tests/fixtures/translated/logistics-e/problem.pddl",
+  "tests/fixtures/translated/LICENSE.potoroo",
+  "tests/fixtures/translated/NOTICE.potoroo",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Harrison Oates"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Translator output derived from a VHPOP domain and a Potoroo problem.
+[[annotations]]
+path = "tests/fixtures/translated/logistics-e/output.sas"
+precedence = "override"
+SPDX-FileCopyrightText = ["2002-2005 Carnegie Mellon University", "2026 Harrison Oates"]
+SPDX-License-Identifier = "GPL-2.0-or-later AND Apache-2.0"
