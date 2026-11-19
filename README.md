@@ -6,6 +6,7 @@
 [![codecov](https://codecov.io/gh/sunsided/width-search/graph/badge.svg)](https://codecov.io/gh/sunsided/width-search)
 [![MSRV](https://img.shields.io/crates/msrv/width-search)](https://crates.io/crates/width-search)
 [![License](https://img.shields.io/crates/l/width-search)](https://github.com/sunsided/width-search#license)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 
 Width-based search (Lipovetzky & Geffner): novelty tables, IW(k), iterated width, and BFWS(⟨w_{#g}, #g⟩).
 
