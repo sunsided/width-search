@@ -65,9 +65,9 @@ cargo run --example key_door         # IW(1) fails, IW(2) succeeds
 
 ## What "width" means
 
-A state's **novelty** is the size of the smallest set of its features that no earlier state in the search had all at once. A state that reaches a never-seen cell has novelty 1. A state whose cell and key flag were each seen before, but never together, has novelty 2.
+A state's **novelty** is the size of the smallest set of its features that no earlier state in the search had all at once. A state that reaches a never-seen cell has novelty 1. A state whose cell and key flag were each seen before, but never together, has novelty 2. A state whose every feature combination was seen before has no novelty value; it counts as greater than any `k`.
 
-**IW(k)** is breadth-first search that drops every state with novelty greater than `k`. So it remembers only feature combinations of size up to `k`, and with `n` features there are at most `O(n^k)` of those.
+**IW(k)** is breadth-first search that drops every non-goal state with novelty greater than `k`. Goal states are always kept. So it remembers only feature combinations of size up to `k`, and with `n` features there are at most `O(n^k)` of those.
 
 A problem's **width** is, roughly, the smallest `k` for which IW(k) finds a shortest plan. Formally (Lipovetzky & Geffner, 2012), it is the smallest `k` such that a chain of feature sets of size at most `k` leads from the initial state to the goal. Each set in the chain is reached optimally by extending an optimal plan for the previous set by one action. Intuitively, width counts how many facts you must track *jointly* to avoid losing your way:
 
