@@ -2,6 +2,12 @@
 # Keep `ci` in sync with .github/workflows/ci.yml: same checks, same flags.
 version: '3'
 
+includes:
+  fuzz:
+    taskfile: fuzz/Taskfile.dist.yaml
+    dir: fuzz
+    optional: true
+
 vars:
   # Prefer cargo-nextest when installed; fall back to cargo test.
   NEXTEST:
@@ -20,9 +26,11 @@ tasks:
     silent: true
 
   build:
-    desc: Build all targets in the workspace
+    desc: Build all targets in the workspace, then the fuzz targets
     cmds:
       - cargo build --workspace --all-targets --all-features {{.CLI_ARGS}}
+      # Verify the fuzz targets still compile against the library (needs nightly).
+      - task: fuzz:build
 
   test:
     desc: Run tests (nextest if installed, cargo test otherwise), then doctests
@@ -52,6 +60,7 @@ tasks:
     aliases: [format]
     cmds:
       - cargo fmt --all
+      - task: fuzz:fmt
 
   fmt:check:
     desc: Check formatting without modifying files
@@ -181,7 +190,7 @@ tasks:
     desc: "Run benchmarks (criterion flags after --: task bench -- --quick)"
     cmds:
       # --bench '*': only [[bench]] targets (--benches would include lib harnesses that reject criterion flags).
-      - cargo bench --workspace --bench '*' -- {{.CLI_ARGS}}
+      - cargo bench --workspace --all-features --bench '*' -- {{.CLI_ARGS}}
 
   ci:
     desc: Run the CI checks locally (mirrors .github/workflows/ci.yml)
@@ -193,9 +202,12 @@ tasks:
       - task: test
       - task: deny
       - task: msrv
+      - task: fuzz:build
+      - task: fuzz:lint
 
   clean:
-    desc: Remove build output
+    desc: Remove build output, including fuzz builds (keeps fuzz corpora and crash artifacts)
     cmds:
       - cargo clean
+      - task: fuzz:clean
       - rm -f lcov.info

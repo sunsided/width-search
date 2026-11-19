@@ -18,5 +18,11 @@ sas-plus = ["dep:sas-plus"]
 sas-plus = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
+criterion = "0.7.0"
 proptest = "1.11.0"
 sas-plus = { version = "0.1.0" }
+
+[[bench]]
+name = "search"
+harness = false
+required-features = ["sas-plus"]
