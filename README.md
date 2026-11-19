@@ -1,5 +1,12 @@
 # width-search
 
+[![crates.io](https://img.shields.io/crates/v/width-search.svg)](https://crates.io/crates/width-search)
+[![docs.rs](https://img.shields.io/docsrs/width-search)](https://docs.rs/width-search)
+[![CI](https://github.com/sunsided/width-search/actions/workflows/ci.yml/badge.svg)](https://github.com/sunsided/width-search/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/sunsided/width-search/graph/badge.svg)](https://codecov.io/gh/sunsided/width-search)
+[![MSRV](https://img.shields.io/crates/msrv/width-search)](https://crates.io/crates/width-search)
+[![License](https://img.shields.io/crates/l/width-search)](https://github.com/sunsided/width-search#license)
+
 Width-based search (Lipovetzky & Geffner): novelty tables, IW(k), iterated width, and BFWS(⟨w_{#g}, #g⟩).
 
 Not tied to PDDL. Anything that can enumerate successors and describe states as integer features implements `WidthProblem`: planning atoms, grid cells, RAM bytes. The `sas-plus` feature adds an adapter for `sas_plus::Task`.
