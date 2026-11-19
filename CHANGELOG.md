@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/sunsided/width-search/compare/v0.1.0...v0.1.1) - 2026-11-19
+
+### Changed
+
+- Compare width-based search to other search algorithms in the README ([#12](https://github.com/sunsided/width-search/pull/12))
+- Cover old states and the goal exception in the width section
+- Explain what "width" means in the README
+- Compare width-based search to other search algorithms in the README
+
+### Fixed
+
+- Fix algorithm preconditions in the README comparison
+
 ## [0.1.0](https://github.com/sunsided/width-search/releases/tag/v0.1.0) - 2026-11-19
 
 Initial release.
