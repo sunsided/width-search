@@ -4,16 +4,70 @@ Width-based search (Lipovetzky & Geffner): novelty tables, IW(k), iterated width
 
 Not tied to PDDL. Anything that can enumerate successors and describe states as integer features implements `WidthProblem`: planning atoms, grid cells, RAM bytes. The `sas-plus` feature adds an adapter for `sas_plus::Task`.
 
-```bash
-cargo run --example key_door         # IW(1) fails, IW(2) succeeds
-cargo test --all-features
+## Usage
+
+Implement `WidthProblem` and run a search. Here, walking from 0 to 5 on a line has width 1:
+
+```rust
+use width_search::{WidthProblem, iw};
+
+/// Walk along the integers 0..=5, one step at a time.
+struct Line;
+
+impl WidthProblem for Line {
+    type State = u32;
+    type Action = i8;
+
+    fn initial_state(&self) -> u32 {
+        0
+    }
+
+    fn successors(&self, s: &u32, out: &mut Vec<(i8, u32)>) {
+        if *s < 5 {
+            out.push((1, s + 1));
+        }
+        if *s > 0 {
+            out.push((-1, s - 1));
+        }
+    }
+
+    // One feature per position.
+    fn features(&self, s: &u32, out: &mut Vec<u32>) {
+        out.push(*s);
+    }
+
+    fn num_features(&self) -> usize {
+        6
+    }
+
+    fn is_goal(&self, s: &u32) -> bool {
+        *s == 5
+    }
+}
+
+let plan = iw(&Line, 1).plan.expect("IW(1) solves it");
+assert_eq!(plan, [1, 1, 1, 1, 1]);
 ```
+
+A grid with a key and a door needs width 2, because the agent revisits cells after picking up the key:
+
+```sh
+cargo run --example key_door         # IW(1) fails, IW(2) succeeds
+```
+
+## Features
+
+- `sas-plus`: `sas::SasProblem`, an adapter that runs width-based search on a [`sas_plus::Task`](https://docs.rs/sas-plus).
 
 **Tested:** end to end on a Fast Downward `output.sas` (gripper: IW needs width 3 for the conjunctive goal, finding the optimal 5-step plan). Also: IW with k = #variables is complete and optimal on unit-cost random tasks; IW and BFWS plans are validated.
 
 **Roadmap:** SIW, BFWS with `#r`, Rollout IW, node-count comparison against LAPKT.
 
 References: Lipovetzky & Geffner, ECAI 2012 and AAAI 2017.
+
+## MSRV
+
+Rust 1.85 (edition 2024). Raising it is a minor release.
 
 ## License
 

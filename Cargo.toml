@@ -10,6 +10,10 @@ readme = "README.md"
 # GPL-2.0-or-later / Apache-2.0 test inputs and the GPL text; see tests/fixtures/README.md
 exclude = ["tests/fixtures", "LICENSES/GPL-2.0-or-later.txt"]
 
+[package.metadata.docs.rs]
+# The sas adapter is behind a feature; document it too.
+all-features = true
+
 [features]
 default = []
 sas-plus = ["dep:sas-plus"]

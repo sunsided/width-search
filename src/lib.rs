@@ -1,10 +1,4 @@
-//! Width-based search (Lipovetzky & Geffner): novelty tables, Iterated Width
-//! IW(k), and Best-First Width Search.
-//!
-//! Independent of PDDL: anything that can enumerate successors and describe
-//! a state as a set of integer features (planning atoms, RAM bytes, grid
-//! cells, ...) implements [`WidthProblem`]. Enable the `sas-plus` feature for
-//! a ready-made adapter over [`sas_plus::Task`].
+#![doc = include_str!("../README.md")]
 
 mod bfws;
 mod iw;
