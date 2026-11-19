@@ -12,6 +12,9 @@ git_release_enable = true
 git_release_type = "auto"
 # Release PR branches follow the branching model (release/*), not the default `release-plz-`.
 pr_branch_prefix = "release/"
+# Imperative title instead of the default "chore: release vX.Y.Z"; release-plz also uses it
+# as the release commit's subject, which the changelog parser then skips.
+pr_name = "Release v{{ version }}"
 # Commits are imperative ("Add X", "Fix Y"), not Conventional Commits: map verbs to bumps.
 custom_minor_increment_regex = "^(Add|Introduce|Support|Allow|Implement|Expose)\\b"
 # `Break` only as the subject's first word; `BREAKING CHANGE:` on any line.
