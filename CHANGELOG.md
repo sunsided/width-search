@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Expose the additive heuristic as `SasProblem::h_add` (feature `sas-plus`); `None` marks a relaxed dead end; the value saturates at `u64::MAX`
 
+### Fixed
+
+- Count a fact that is both a precondition and an effect condition once in `h_add`, not twice
+
 ## [0.2.0](https://github.com/sunsided/width-search/compare/v0.1.1...v0.2.0) - 2026-11-19
 
 ### Added
