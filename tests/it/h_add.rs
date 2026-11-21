@@ -2,6 +2,7 @@
 //! unreachable-goal and derived-default cases.
 
 use sas_plus::fdr::SasFile;
+use sas_plus::random::{RandomTaskParams, random_task};
 use sas_plus::{Axiom, Effect, Fact, Operator, State, Task, Variable};
 use width_search::{bfws, sas::SasProblem};
 
@@ -127,4 +128,26 @@ fn h_add_saturates_instead_of_overflowing() {
     let problem = SasProblem::new(&task);
 
     assert_eq!(problem.h_add(&task.initial_state()), Some(u64::MAX));
+}
+
+/// A fact that is both an operator precondition and a condition of one of its
+/// effects counts once in that effect's rule. Random task seed 31 with effect
+/// conditions repeats a precondition; the standard `h_add` of its reachable
+/// state `[1, 0, 2, 2]` is 13, and counting the repeated fact twice gave 15.
+#[test]
+fn h_add_counts_a_repeated_condition_once() {
+    let params = RandomTaskParams {
+        max_conditions: 2,
+        ..RandomTaskParams::default()
+    };
+    let task = random_task(31, params);
+    let repeats = task.operators.iter().any(|op| {
+        op.eff
+            .iter()
+            .any(|e| e.conditions.iter().any(|c| op.pre.contains(c)))
+    });
+    assert!(repeats, "seed 31 no longer repeats a precondition");
+
+    let problem = SasProblem::new(&task);
+    assert_eq!(problem.h_add(&State(vec![1, 0, 2, 2])), Some(13));
 }

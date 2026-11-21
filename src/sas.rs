@@ -21,10 +21,22 @@ pub struct SasProblem<'a> {
     rules: OnceLock<Vec<Rule>>,
 }
 
+/// The distinct feature ids of `features`, sorted ascending.
+///
+/// A fact that is both a precondition and an effect condition must count once
+/// in a rule's `h_add` sum, not twice.
+fn distinct(features: impl Iterator<Item = u32>) -> Vec<u32> {
+    let mut ids: Vec<u32> = features.collect();
+    ids.sort_unstable();
+    ids.dedup();
+
+    ids
+}
+
 /// A delete-free rule `conditions → head`: one effect of an operator (its
 /// precondition plus the effect's conditions) or one axiom.
 struct Rule {
-    /// Feature ids that must all hold.
+    /// Feature ids that must all hold. Sorted ascending, no duplicates.
     conditions: Vec<u32>,
     /// The feature the rule makes true.
     head: u32,
@@ -70,14 +82,14 @@ impl<'a> SasProblem<'a> {
             .flat_map(|(id, op)| op.eff.iter().map(move |e| (id, op, e)));
         let mut rules: Vec<Rule> = effects
             .map(|(id, op, e)| Rule {
-                conditions: op.pre.iter().chain(&e.conditions).map(fact).collect(),
+                conditions: distinct(op.pre.iter().chain(&e.conditions).map(fact)),
                 head: fact(&e.fact),
                 op: Some(id),
                 cost: u64::from(op.cost),
             })
             .collect();
         rules.extend(self.task.axioms.iter().map(|a| Rule {
-            conditions: a.conditions.iter().map(fact).collect(),
+            conditions: distinct(a.conditions.iter().map(fact)),
             head: fact(&a.head),
             op: None,
             cost: 0,
