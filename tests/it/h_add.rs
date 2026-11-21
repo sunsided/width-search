@@ -89,3 +89,42 @@ fn h_add_does_not_reach_derived_defaults() {
     assert_eq!(task.validate_plan(&[0]), Some(1));
     assert_eq!(problem.h_add(&task.initial_state()), None);
 }
+
+/// `h_add` sums condition costs, so a rule needing two facts of cost `c`
+/// costs at least `2c`. Seventy layers of that overflow `u64`; the value
+/// saturates instead.
+#[test]
+fn h_add_saturates_instead_of_overflowing() {
+    const LAYERS: usize = 70;
+    // Two variables per layer; each is set by one operator that needs both
+    // variables of the layer below, so the cost doubles per layer.
+    let variables = (0..2 * LAYERS)
+        .map(|i| Variable::new(format!("v{i}"), 2))
+        .collect();
+    let operators = (0..2 * LAYERS)
+        .map(|i| {
+            let layer = i / 2;
+            let pre = if layer == 0 {
+                vec![]
+            } else {
+                vec![Fact::new(2 * layer - 2, 1), Fact::new(2 * layer - 1, 1)]
+            };
+            Operator {
+                name: format!("set-{i}"),
+                pre,
+                eff: vec![Effect::new(Fact::new(i, 1))],
+                cost: 1,
+            }
+        })
+        .collect();
+    let task = Task {
+        variables,
+        operators,
+        initial: State(vec![0; 2 * LAYERS]),
+        goal: vec![Fact::new(2 * LAYERS - 1, 1)],
+        axioms: vec![],
+    };
+    let problem = SasProblem::new(&task);
+
+    assert_eq!(problem.h_add(&task.initial_state()), Some(u64::MAX));
+}

@@ -107,7 +107,8 @@ impl<'a> SasProblem<'a> {
     /// value true, so a default that does not hold in `state` is unreachable.
     ///
     /// `h_add` is not admissible: shared subgoals are counted once per goal
-    /// fact that needs them.
+    /// fact that needs them. The value saturates at `u64::MAX` instead of
+    /// overflowing.
     ///
     /// These are the costs whose best supporters
     /// [`RelaxedPlan::relaxed_plan_features`] extracts its relaxed plan from.
@@ -153,17 +154,17 @@ impl<'a> SasProblem<'a> {
     pub fn h_add(&self, state: &State) -> Option<u64> {
         let (cost, _) = self.relaxed_costs(state);
 
-        self.task
-            .goal
-            .iter()
-            .map(|f| cost[self.feature(f) as usize])
-            .sum()
+        self.task.goal.iter().try_fold(0u64, |acc, f| {
+            cost[self.feature(f) as usize].map(|x| acc.saturating_add(x))
+        })
     }
 
     /// `h_add` cost of every fact from `state` and, for each fact reached by a
     /// rule, the index of its cheapest supporting rule.
     ///
-    /// Unreachable facts cost `None`. Rules are relaxed until nothing
+    /// Unreachable facts cost `None`. Costs saturate at `u64::MAX`: a rule sums
+    /// its conditions, so costs can double per layer and overflow on deep tasks.
+    /// Rules are relaxed until nothing
     /// improves; shortcut: `O(facts · rules)` sweeps worst case, fine for the
     /// task sizes this adapter targets, upgrade to a priority queue for large tasks.
     fn relaxed_costs(&self, state: &State) -> (Vec<Option<u64>>, Vec<Option<usize>>) {
@@ -177,14 +178,12 @@ impl<'a> SasProblem<'a> {
         while changed {
             changed = false;
             for (i, rule) in self.rules().iter().enumerate() {
-                let Some(pre) = rule
-                    .conditions
-                    .iter()
-                    .try_fold(0u64, |acc, &c| cost[c as usize].map(|x| acc + x))
-                else {
+                let Some(pre) = rule.conditions.iter().try_fold(0u64, |acc, &c| {
+                    cost[c as usize].map(|x| acc.saturating_add(x))
+                }) else {
                     continue;
                 };
-                let total = pre + rule.cost;
+                let total = pre.saturating_add(rule.cost);
                 let head = rule.head as usize;
                 if cost[head].is_none_or(|old| total < old) {
                     cost[head] = Some(total);
