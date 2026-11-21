@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Expose the additive heuristic as `SasProblem::h_add` (feature `sas-plus`); `None` marks a relaxed dead end; the value saturates at `u64::MAX`
+
 ## [0.2.0](https://github.com/sunsided/width-search/compare/v0.1.1...v0.2.0) - 2026-11-19
 
 ### Added

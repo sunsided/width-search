@@ -91,13 +91,83 @@ impl<'a> SasProblem<'a> {
         self.offsets[fact.var] + fact.value
     }
 
+    /// The additive heuristic `h_add` of `state`: the sum, over all goal facts,
+    /// of the cheapest delete-relaxed cost of reaching that fact.
+    ///
+    /// Each fact true in `state` costs 0. A fact made true by a rule costs the
+    /// rule's cost plus the sum of its conditions' costs, minimised over all
+    /// rules. Operator effects become rules with the operator's precondition
+    /// and the effect's conditions; axioms become rules of cost 0. Derived
+    /// variables are read from `state` as given, so pass a state with axioms
+    /// evaluated, such as one from [`Task::initial_state`] or [`Task::apply`].
+    ///
+    /// Returns `None` when some goal fact is unreachable even under the delete
+    /// relaxation. On tasks without axioms this proves `state` a dead end.
+    /// With axioms it may not: no rule makes a derived variable's default
+    /// value true, so a default that does not hold in `state` is unreachable.
+    ///
+    /// `h_add` is not admissible: shared subgoals are counted once per goal
+    /// fact that needs them. The value saturates at `u64::MAX` instead of
+    /// overflowing.
+    ///
+    /// These are the costs whose best supporters
+    /// [`RelaxedPlan::relaxed_plan_features`] extracts its relaxed plan from.
+    ///
+    /// # Examples
+    ///
+    /// Picking up a key (cost 2) and then opening a door with it (cost 3),
+    /// with both "holding the key" and "door open" as goals:
+    ///
+    /// ```
+    /// use sas_plus::{Effect, Fact, Operator, State, Task, Variable};
+    /// use width_search::sas::SasProblem;
+    ///
+    /// let task = Task {
+    ///     variables: vec![Variable::new("key", 2), Variable::new("door", 2)],
+    ///     operators: vec![
+    ///         Operator {
+    ///             name: "pick-up-key".into(),
+    ///             pre: vec![],
+    ///             eff: vec![Effect::new(Fact::new(0, 1))],
+    ///             cost: 2,
+    ///         },
+    ///         Operator {
+    ///             name: "open-door".into(),
+    ///             pre: vec![Fact::new(0, 1)],
+    ///             eff: vec![Effect::new(Fact::new(1, 1))],
+    ///             cost: 3,
+    ///         },
+    ///     ],
+    ///     initial: State(vec![0, 0]),
+    ///     goal: vec![Fact::new(0, 1), Fact::new(1, 1)],
+    ///     axioms: vec![],
+    /// };
+    /// let problem = SasProblem::new(&task);
+    ///
+    /// // key: 2, door: 2 + 3. The key's cost is counted twice, so h_add (7)
+    /// // overestimates the optimal plan cost (5).
+    /// assert_eq!(problem.h_add(&task.initial_state()), Some(7));
+    /// assert_eq!(problem.h_add(&State(vec![1, 0])), Some(3));
+    /// assert_eq!(problem.h_add(&State(vec![1, 1])), Some(0));
+    /// ```
+    #[must_use]
+    pub fn h_add(&self, state: &State) -> Option<u64> {
+        let (cost, _) = self.relaxed_costs(state);
+
+        self.task.goal.iter().try_fold(0u64, |acc, f| {
+            cost[self.feature(f) as usize].map(|x| acc.saturating_add(x))
+        })
+    }
+
     /// `h_add` cost of every fact from `state` and, for each fact reached by a
     /// rule, the index of its cheapest supporting rule.
     ///
-    /// Unreachable facts cost `None`. Rules are relaxed until nothing
+    /// Unreachable facts cost `None`. Costs saturate at `u64::MAX`: a rule sums
+    /// its conditions, so costs can double per layer and overflow on deep tasks.
+    /// Rules are relaxed until nothing
     /// improves; shortcut: `O(facts · rules)` sweeps worst case, fine for the
     /// task sizes this adapter targets, upgrade to a priority queue for large tasks.
-    fn h_add(&self, state: &State) -> (Vec<Option<u64>>, Vec<Option<usize>>) {
+    fn relaxed_costs(&self, state: &State) -> (Vec<Option<u64>>, Vec<Option<usize>>) {
         let mut cost = vec![None; self.num_facts];
         let mut supporter = vec![None; self.num_facts];
         for f in self.features_of(state) {
@@ -108,14 +178,12 @@ impl<'a> SasProblem<'a> {
         while changed {
             changed = false;
             for (i, rule) in self.rules().iter().enumerate() {
-                let Some(pre) = rule
-                    .conditions
-                    .iter()
-                    .try_fold(0u64, |acc, &c| cost[c as usize].map(|x| acc + x))
-                else {
+                let Some(pre) = rule.conditions.iter().try_fold(0u64, |acc, &c| {
+                    cost[c as usize].map(|x| acc.saturating_add(x))
+                }) else {
                     continue;
                 };
-                let total = pre + rule.cost;
+                let total = pre.saturating_add(rule.cost);
                 let head = rule.head as usize;
                 if cost[head].is_none_or(|old| total < old) {
                     cost[head] = Some(total);
@@ -180,7 +248,7 @@ impl GoalCount for SasProblem<'_> {
 /// are followed but contribute no features of their own.
 impl RelaxedPlan for SasProblem<'_> {
     fn relaxed_plan_features(&self, state: &State, out: &mut Vec<u32>) {
-        let (cost, supporter) = self.h_add(state);
+        let (cost, supporter) = self.relaxed_costs(state);
         let goals: Vec<u32> = self.task.goal.iter().map(|f| self.feature(f)).collect();
         if goals.iter().any(|&g| cost[g as usize].is_none()) {
             return;
