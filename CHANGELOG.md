@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/sunsided/width-search/compare/v0.2.0...v0.3.0) - 2026-11-21
+
 ### Added
 
+- Expose h_add on SasProblem ([#17](https://github.com/sunsided/width-search/pull/17))
 - Expose the additive heuristic as `SasProblem::h_add` (feature `sas-plus`); `None` marks a relaxed dead end; the value saturates at `u64::MAX`
+
+### Changed
+
+- List the crate in the game-development category ([#20](https://github.com/sunsided/width-search/pull/20))
+- Reject width 0 in BFWS up front and document the panic ([#19](https://github.com/sunsided/width-search/pull/19))
+- Count repeated rule conditions once in h_add ([#18](https://github.com/sunsided/width-search/pull/18))
 
 ### Fixed
 
