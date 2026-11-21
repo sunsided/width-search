@@ -8,7 +8,7 @@ rust-version = "1.86"
 repository = "https://github.com/sunsided/width-search"
 readme = "README.md"
 keywords = ["planning", "width-based-search", "novelty", "iterated-width", "bfws"]
-categories = ["algorithms", "science"]
+categories = ["algorithms", "science", "game-development"]
 # GPL-2.0-or-later / Apache-2.0 test inputs and the GPL text; see tests/fixtures/README.md
 exclude = ["tests/fixtures", "LICENSES/GPL-2.0-or-later.txt"]
 
