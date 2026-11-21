@@ -56,3 +56,15 @@ fn iterated_width_and_bfws_return_valid_plans() {
         }
     }
 }
+
+/// BFWS rejects width 0 even when the initial state is already a goal and no
+/// novelty table is ever built.
+#[test]
+#[should_panic(expected = "width bound must be at least 1")]
+fn bfws_rejects_width_zero_on_a_goal_initial_state() {
+    let mut task = random_task(0, PARAMS);
+    task.goal.clear();
+    let problem = SasProblem::new(&task);
+
+    let _ = bfws(&problem, 0);
+}

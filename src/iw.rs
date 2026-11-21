@@ -4,6 +4,10 @@ use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
 
 /// IW(k): breadth-first search that prunes every generated state whose
 /// novelty exceeds `k`. Runs in `O(n^k)` expansions for `n` features.
+///
+/// # Panics
+///
+/// Panics if `k` is 0.
 pub fn iw<P: WidthProblem>(problem: &P, k: usize) -> SearchResult<P::Action> {
     iw_from(problem, problem.initial_state(), k, |s| problem.is_goal(s)).0
 }

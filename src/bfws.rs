@@ -7,6 +7,10 @@ use crate::{GoalCount, Node, NoveltyTable, RelaxedPlan, SearchResult, extract_pl
 /// BFWS(f) with `f = ⟨w_{#g}, #g⟩`: best-first search ordered by novelty
 /// (computed separately for each goal-count value `#g`, capped at `k + 1`),
 /// breaking ties by `#g`. Complete on finite state spaces.
+///
+/// # Panics
+///
+/// Panics if `k` is 0.
 pub fn bfws<P>(problem: &P, k: usize) -> SearchResult<P::Action>
 where
     P: GoalCount,
@@ -27,6 +31,10 @@ where
 /// relevant feature true in some state since that recomputation.
 ///
 /// Complete on finite state spaces.
+///
+/// # Panics
+///
+/// Panics if `k` is 0.
 pub fn bfws_r<P>(problem: &P, k: usize) -> SearchResult<P::Action>
 where
     P: RelaxedPlan,
@@ -171,6 +179,9 @@ where
     P::State: Hash + Eq,
     F: FnMut(&P::State, &mut Vec<u32>),
 {
+    // Checked up front, not only when the first novelty table is built, so a
+    // goal initial state does not hide the bad bound.
+    assert!(k >= 1, "width bound must be at least 1");
     let mut eval = Evaluator {
         problem,
         k,
