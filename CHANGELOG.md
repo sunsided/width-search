@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/sunsided/width-search/compare/v0.3.0...v0.3.1) - 2026-11-22
+
+### Changed
+
+- Link the crate to its page on the planning and search site ([#25](https://github.com/sunsided/width-search/pull/25))
+- Note the set-width guarantee and the hardness of certifying width ([#24](https://github.com/sunsided/width-search/pull/24))
+- Describe the audience and installation in the README ([#21](https://github.com/sunsided/width-search/pull/21))
+- Link the crate to its page on the planning and search site
+- Note the set-width guarantee and the hardness of certifying width
+- Describe the audience and installation in the README
+
 ## [0.3.0](https://github.com/sunsided/width-search/compare/v0.2.0...v0.3.0) - 2026-11-21
 
 ### Added
