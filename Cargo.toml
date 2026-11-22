@@ -6,6 +6,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.86"
 repository = "https://github.com/sunsided/width-search"
+homepage = "https://sunsided.github.io/planning-and-search/crates/width-search/"
 readme = "README.md"
 keywords = ["planning", "width-based-search", "novelty", "iterated-width", "bfws"]
 categories = ["algorithms", "science", "game-development"]
