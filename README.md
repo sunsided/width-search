@@ -28,6 +28,8 @@ width-search = "0.3"
 
 Enable `features = ["sas-plus"]` to search `sas_plus::Task`s directly.
 
+Part of the [planning and search crates](https://sunsided.github.io/planning-and-search/); see also this crate's [overview page](https://sunsided.github.io/planning-and-search/crates/width-search/).
+
 ## Usage
 
 Implement `WidthProblem` and run a search. Here, walking from 0 to 5 on a line has width 1:
