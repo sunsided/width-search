@@ -76,6 +76,8 @@ A problem's **width** is, roughly, the smallest `k` for which IW(k) finds a shor
 
 Width is a property of the problem *and* of the features you choose. Better features can lower it. Many puzzle and planning domains have width 1 or 2 for a single goal fact, which is why low-`k` searches go so far. Conjunctive goals ("collect every key") usually have higher width, which is the case BFWS handles by also counting satisfied goals (`#g`).
 
+IW(k) already finds a shortest plan when the problem's *set width* is at most `k` (Bonet & Geffner, 2024), which can be smaller than the chain-based width above. The crate does not compute a problem's width, and cannot do so cheaply: [Nguyen (2026)](https://arxiv.org/abs/2611.25484) shows that certifying width at most `k` is coNP-complete even when the unique optimal plan is known, and that no polynomial-time estimate comes within a factor `o(N)` for `N` atoms unless P = NP. Iterated width, which tries `k = 1, 2, …` in turn, is the practical way to find a `k` that suffices.
+
 ## How it compares
 
 Classic searches rank states by distance: the cost so far (BFS, Dijkstra), plus an estimate of the cost to go (A*). Width-based search ranks them by **novelty** instead. A state is worth keeping only if it makes some feature value, or some combination of up to `k` feature values, true for the first time. You don't need a heuristic or a distance metric. You only need features, and the search explores "new things" first.
