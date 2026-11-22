@@ -1,6 +1,6 @@
 [package]
 name = "width-search"
-description = "Width-based search: novelty tables, Iterated Width (IW), Serialized IW, Best-First Width Search (BFWS), and Rollout IW"
+description = "Width-based search without heuristics: novelty tables, Iterated Width (IW), Serialized IW, BFWS and Rollout IW for planning and games"
 version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -8,7 +8,7 @@ rust-version = "1.86"
 repository = "https://github.com/sunsided/width-search"
 readme = "README.md"
 keywords = ["planning", "width-based-search", "novelty", "iterated-width", "bfws"]
-categories = ["algorithms", "science", "game-development"]
+categories = ["algorithms", "artificial-intelligence", "game-development", "science"]
 # GPL-2.0-or-later / Apache-2.0 test inputs and the GPL text; see tests/fixtures/README.md
 exclude = ["tests/fixtures", "LICENSES/GPL-2.0-or-later.txt"]
 

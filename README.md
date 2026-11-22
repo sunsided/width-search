@@ -8,9 +8,25 @@
 [![License](https://img.shields.io/crates/l/width-search)](https://github.com/sunsided/width-search#license)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 
-Width-based search (Lipovetzky & Geffner): novelty tables, IW(k), iterated width, serialized IW (SIW), BFWS(⟨w_{#g}, #g⟩), BFWS with relaxed-plan counts `#r`, and Rollout IW(1).
+Width-based search (Lipovetzky & Geffner) for planning and search problems: novelty tables, IW(k), iterated width, serialized IW (SIW), BFWS(⟨w_{#g}, #g⟩), BFWS with relaxed-plan counts `#r`, and Rollout IW(1). These searches need no heuristic: they prune every state that makes no new combination of features true, which bounds IW(k) to `O(n^k)` expansions for `n` features, however large the raw state space is.
 
-Anything that can enumerate successors and describe states as integer features implements `WidthProblem`: planning atoms, grid cells, RAM bytes. The `sas-plus` feature adds an adapter for `sas_plus::Task`.
+Anything that can enumerate successors and describe states as integer features implements `WidthProblem`: planning atoms, grid cells, RAM bytes. The `sas-plus` feature adds an adapter for `sas_plus::Task`, with goal counts and relaxed plans for BFWS. On the bundled planning fixtures, the expansion counts match LAPKT for IW and stay close for the other searches (see [Compared with LAPKT](https://github.com/sunsided/width-search#compared-with-lapkt)).
+
+## Who this is for
+
+- Planning and search people who want IW, SIW or BFWS in Rust, on SAS+ tasks or on their own state representation, without writing a heuristic first.
+- Game and tool developers who need to check that a generated level is solvable, plan for NPCs from world-state facts, or explore a simulator from its raw state bytes (more in [In games](https://github.com/sunsided/width-search#in-games)).
+- Researchers comparing novelty-based pruning against heuristic search, with node counts that line up with LAPKT.
+- For shortest paths with action costs and a good distance heuristic, A* and its variants in [`heuristic-search`](https://github.com/sunsided/heuristic-search) are the better pick. Heuristics for classical planning tasks live in [`planning-heuristics`](https://github.com/sunsided/planning-heuristics), and probabilistic outcomes are handled by [`stochastic-search`](https://github.com/sunsided/stochastic-search).
+
+## Installation
+
+```toml
+[dependencies]
+width-search = "0.3"
+```
+
+Enable `features = ["sas-plus"]` to search `sas_plus::Task`s directly.
 
 ## Usage
 
