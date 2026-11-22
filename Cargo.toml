@@ -1,7 +1,7 @@
 [package]
 name = "width-search"
 description = "Width-based search without heuristics: novelty tables, Iterated Width (IW), Serialized IW, BFWS and Rollout IW for planning and games"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.86"
