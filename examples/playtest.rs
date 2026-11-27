@@ -84,9 +84,18 @@ impl Level {
 
     /// The room `cell` lies in; a doorway counts as the room to its right
     /// or below.
+    ///
+    /// # Panics
+    ///
+    /// Panics on the closing right or bottom wall, which belongs to no room
+    /// and is never reached.
     fn room(cell: usize) -> u32 {
         let (rx, ry) = ((cell % W) / ROOM, (cell / W) / ROOM);
-        u32::try_from(ry.min(ROOMS_Y - 1) * ROOMS_X + rx.min(ROOMS_X - 1)).expect("few rooms")
+        assert!(
+            rx < ROOMS_X && ry < ROOMS_Y,
+            "cell {cell} is on the outer wall"
+        );
+        u32::try_from(ry * ROOMS_X + rx).expect("few rooms")
     }
 }
 

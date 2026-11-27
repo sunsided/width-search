@@ -50,7 +50,9 @@ fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| DEFAULT.to_string());
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!("{path}: {e}\npass the path to a Fast Downward output.sas as the first argument")
+    });
     let file: SasFile = text.parse().unwrap_or_else(|e| panic!("{path}: {e:?}"));
     let task = file.to_task();
     let problem = SasProblem::new(&task);
