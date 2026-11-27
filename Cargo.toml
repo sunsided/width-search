@@ -49,6 +49,10 @@ criterion = "0.8.2"
 proptest = "1.11.0"
 sas-plus = { version = "0.2.1" }
 
+[[example]]
+name = "fd_task"
+required-features = ["sas-plus"]
+
 [[bench]]
 name = "search"
 harness = false
