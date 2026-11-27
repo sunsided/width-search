@@ -67,7 +67,7 @@ where
     P: WidthProblem,
     F: FnMut(&P::State, &[(P::Action, P::State)], &mut Vec<f64>),
 {
-    let mut tree = Tree::new(problem, policy, seed);
+    let mut tree = Tree::new(problem, policy, seed, None);
     let root = problem.initial_state();
     if problem.is_goal(&root) {
         tree.result.plan = Some(Vec::new());
@@ -75,8 +75,8 @@ where
     }
 
     tree.add_root(root);
-    while !tree.meta[0].solved {
-        if let Some(goal) = tree.rollout() {
+    while !tree.is_exhausted() {
+        if let Outcome::Goal(goal) = tree.rollout() {
             tree.result.plan = Some(extract_plan(&tree.nodes, goal));
             break;
         }
@@ -100,6 +100,21 @@ struct Meta {
     weight: f64,
 }
 
+/// How a rollout ended.
+pub(crate) enum Outcome {
+    /// It generated a goal state, at this arena index.
+    Goal(usize),
+    /// It entered a state outside the root's high-level partition, at this
+    /// arena index; see [`Tree::new`].
+    Boundary(usize),
+    /// It labeled a node solved; nothing to report.
+    Solved,
+}
+
+/// The high-level feature function of π-HIW and the sorted high-level
+/// features of a tree's root: states with other features are boundaries.
+pub(crate) type Partition<'a, S> = (&'a dyn Fn(&S, &mut Vec<u32>), Vec<u32>);
+
 /// What the novelty test says about the node a rollout just entered.
 enum Verdict {
     /// The node is novel: continue the rollout below it.
@@ -109,15 +124,18 @@ enum Verdict {
 }
 
 /// The search tree of a Rollout IW(1) run and its novelty table.
-struct Tree<'p, P: WidthProblem, F> {
+pub(crate) struct Tree<'p, P: WidthProblem, F> {
     /// The problem being searched.
     problem: &'p P,
+    /// For π-HIW: the high-level partition of the root. A rollout entering
+    /// a state outside it stops there; `None` for a flat search.
+    partition: Option<Partition<'p, P::State>>,
     /// The π-IW policy; `None` picks children uniformly.
     policy: Option<F>,
     /// Reused buffer for the policy's weights.
     weights: Vec<f64>,
     /// Node arena: states and parent links.
-    nodes: Vec<Node<P::State, P::Action>>,
+    pub nodes: Vec<Node<P::State, P::Action>>,
     /// Rollout data of each node, same indices as `nodes`.
     meta: Vec<Meta>,
     /// Smallest depth at which each feature was reached; `usize::MAX` if never.
@@ -129,7 +147,7 @@ struct Tree<'p, P: WidthProblem, F> {
     /// Reused buffer for successors.
     succ: Vec<(P::Action, P::State)>,
     /// Node counts so far; `plan` is filled in by [`rollout_iw`].
-    result: SearchResult<P::Action>,
+    pub result: SearchResult<P::Action>,
 }
 
 impl<'p, P, F> Tree<'p, P, F>
@@ -137,10 +155,17 @@ where
     P: WidthProblem,
     F: FnMut(&P::State, &[(P::Action, P::State)], &mut Vec<f64>),
 {
-    /// An empty tree for `problem`, guided by `policy` if set.
-    fn new(problem: &'p P, policy: Option<F>, seed: u64) -> Self {
+    /// An empty tree for `problem`, guided by `policy` if set, and confined
+    /// to a high-level `partition` if set.
+    pub fn new(
+        problem: &'p P,
+        policy: Option<F>,
+        seed: u64,
+        partition: Option<Partition<'p, P::State>>,
+    ) -> Self {
         Self {
             problem,
+            partition,
             policy,
             weights: Vec::new(),
             nodes: Vec::new(),
@@ -158,7 +183,7 @@ where
     }
 
     /// Adds the root at depth 0 and records its features at depth 0.
-    fn add_root(&mut self, root: P::State) {
+    pub fn add_root(&mut self, root: P::State) {
         self.feats.clear();
         self.problem.features(&root, &mut self.feats);
         for &f in &self.feats {
@@ -169,29 +194,52 @@ where
         self.meta[0].visited = true;
     }
 
-    /// One rollout from the root; returns the index of a goal node if one
-    /// was generated.
-    fn rollout(&mut self) -> Option<usize> {
+    /// Whether every node is solved, so no rollout is left to run.
+    pub fn is_exhausted(&self) -> bool {
+        self.meta[0].solved
+    }
+
+    /// One rollout from the root. A boundary node it enters is labeled
+    /// solved, so each is reported once.
+    pub fn rollout(&mut self) -> Outcome {
         let mut n = 0;
         loop {
             if self.meta[n].children.is_none() {
                 if let Some(goal) = self.expand(n) {
-                    return Some(goal);
+                    return Outcome::Goal(goal);
                 }
             }
 
             let Some(child) = self.pick_unsolved_child(n) else {
                 // No unsolved children: nothing left to explore below n.
                 self.solve(n);
-                return None;
+                return Outcome::Solved;
             };
 
             n = child;
+            if self.is_boundary(n) {
+                self.solve(n);
+                return Outcome::Boundary(n);
+            }
+
             if let Verdict::Prune = self.novelty(n) {
                 self.solve(n);
-                return None;
+                return Outcome::Solved;
             }
         }
+    }
+
+    /// Whether node `n` lies outside the root's high-level partition.
+    fn is_boundary(&mut self, n: usize) -> bool {
+        let Some((high, root_features)) = &self.partition else {
+            return false;
+        };
+
+        self.feats.clear();
+        high(&self.nodes[n].state, &mut self.feats);
+        self.feats.sort_unstable();
+        self.feats.dedup();
+        self.feats != *root_features
     }
 
     /// Generates all children of `n`; returns the first goal child, if any.

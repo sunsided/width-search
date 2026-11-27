@@ -5,7 +5,11 @@ use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
 /// Incremental HIW: discovers high-level features from pruned nodes.
 mod incremental;
 
+/// π-HIW: count-based Rollout IW over high-level states, π-IW below.
+mod policy;
+
 pub use incremental::ihiw;
+pub use policy::pi_hiw;
 
 /// Hierarchical IW, HIW(`w_high`, `w_low`) (Junyent, Jonsson & Gómez,
 /// ICAPS 2021): IW over high-level features, where each high-level state is

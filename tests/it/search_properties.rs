@@ -6,7 +6,7 @@ use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{
-    Condition, Effect, GoalCount, Rule, bfws, bfws_r, hiw, ihiw, iterated_width, iw, pi_iw,
+    Condition, Effect, GoalCount, Rule, bfws, bfws_r, hiw, ihiw, iterated_width, iw, pi_hiw, pi_iw,
     rollout_iw, sas::SasProblem, siw, siw_plus, siw_r,
 };
 
@@ -198,6 +198,32 @@ proptest! {
         let problem = SasProblem::new(&task);
         let r = ihiw(&problem, 1, 1, seed);
         let again = ihiw(&problem, 1, 1, seed);
+
+        prop_assert_eq!(&r.plan, &again.plan);
+        prop_assert_eq!((r.expanded, r.generated), (again.expanded, again.generated));
+        if let Some(plan) = r.plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// π-HIW with `#g` as the high-level feature and a policy that hashes
+    /// each successor to a weight in 0..=2 terminates, returns only valid
+    /// plans and none for an unsolvable task, and the same seed gives the
+    /// same result.
+    #[test]
+    fn pi_hiw_plans_are_valid_and_seeded(task in task(), seed in any::<u64>()) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let problem = SasProblem::new(&task);
+        let goal_count = |s: &_, out: &mut Vec<u32>| {
+            out.push(u32::try_from(problem.unsatisfied_goals(s)).unwrap());
+        };
+        let policy = |_: &_, succ: &[(usize, _)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|&(a, _)| f64::from(u8::try_from(a % 3).unwrap())));
+        };
+        let num_high = task.goal.len() + 1;
+        let r = pi_hiw(&problem, goal_count, num_high, policy, 0.005, seed);
+        let again = pi_hiw(&problem, goal_count, num_high, policy, 0.005, seed);
 
         prop_assert_eq!(&r.plan, &again.plan);
         prop_assert_eq!((r.expanded, r.generated), (again.expanded, again.generated));
