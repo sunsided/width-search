@@ -36,8 +36,8 @@ pub(crate) fn iw_from<P: WidthProblem>(
 /// (IW+ when `oracle` is set, plain IW otherwise).
 ///
 /// `oracle` gives the relaxed-plan features of `root`, computed once per run;
-/// `#r` of a node counts those reached on its path, as in
-/// [`bfws_r`](crate::bfws_r). Returns the result and, if a plan was found,
+/// `#r` of a node counts those reached on its path, except those already
+/// true at `root`, as in [`bfws_r`](crate::bfws_r). Returns the result and, if a plan was found,
 /// the state it ends in. Goal states are never pruned.
 pub(crate) fn iw_plus_from<P, F>(
     problem: &P,

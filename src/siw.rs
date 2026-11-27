@@ -28,7 +28,9 @@ pub fn siw<P: GoalCount>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
 ///
 /// IW+ computes novelty separately for each `#r`: the number of relaxed-plan
 /// features reached on the path from the root of the current IW run, as in
-/// [`bfws_r`](crate::bfws_r). The relaxed plan comes from
+/// [`bfws_r`](crate::bfws_r). Features already true at that root never
+/// count, even if the path makes them false and true again. The relaxed plan
+/// comes from
 /// [`RelaxedPlan::relaxed_plan_features`] and is computed once at the root of
 /// every IW run. A state is pruned only if it is not novel among the states
 /// with the same `#r`, so IW+ keeps more states than IW and can reach a
@@ -36,9 +38,11 @@ pub fn siw<P: GoalCount>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
 ///
 /// Subgoals are found as in [`siw`]: any drop in `#g` counts, and the search
 /// gives up when no subgoal is reachable within width `max_k`. LAPKT's SIW+
-/// differs in three ways, so node counts and plans differ too: it tracks goal
+/// differs in four ways, so node counts and plans differ too: it tracks goal
 /// atoms (see [`siw`]), it skips states already generated in the current run,
-/// and it stops widening early when a run pruned nothing by novelty.
+/// it stops widening early when a run pruned nothing by novelty, and its `#r`
+/// counts add effects on the path, so a root fact that an action adds again
+/// counts too.
 pub fn siw_plus<P: RelaxedPlan>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
     serialize(
         problem,
