@@ -6,7 +6,8 @@ use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{
-    bfws, bfws_r, iterated_width, pi_iw, rollout_iw, sas::SasProblem, siw, siw_plus,
+    Condition, Effect, GoalCount, Rule, bfws, bfws_r, iterated_width, pi_iw, rollout_iw,
+    sas::SasProblem, siw, siw_plus, siw_r,
 };
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
@@ -138,5 +139,24 @@ proptest! {
             prop_assert!(solvable);
             prop_assert!(task.validate_plan(&plan).is_some());
         }
+    }
+
+    /// SIW-R with the goal-count sketch `{#g > 0} ↦ {#g↓}` is SIW: same
+    /// plan, same node counts.
+    #[test]
+    fn siw_r_with_the_goal_count_sketch_is_siw(task in task(), max_k in 1usize..=2) {
+        let problem = SasProblem::new(&task);
+        let rules = [Rule {
+            conditions: vec![Condition::Positive(0)],
+            effects: vec![Effect::Decrease(0)],
+        }];
+        let goal_count = |s: &_, out: &mut Vec<u64>| {
+            out.push(u64::try_from(problem.unsatisfied_goals(s)).unwrap());
+        };
+        let r = siw_r(&problem, &rules, goal_count, max_k);
+        let expected = siw(&problem, max_k);
+
+        prop_assert_eq!(&r.plan, &expected.plan);
+        prop_assert_eq!((r.expanded, r.generated), (expected.expanded, expected.generated));
     }
 }

@@ -16,12 +16,15 @@ mod rollout;
 pub mod sas;
 /// Serialized IW and SIW+: one IW (or IW+) search per achieved goal.
 mod siw;
+/// Sketches and SIW-R: serialized IW with subgoals given by sketch rules.
+mod sketch;
 
 pub use bfws::{bfws, bfws_r};
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use rollout::{pi_iw, rollout_iw};
 pub use siw::{siw, siw_plus};
+pub use sketch::{Condition, Effect, Rule, siw_r};
 
 /// A search problem described by successors and integer features.
 ///

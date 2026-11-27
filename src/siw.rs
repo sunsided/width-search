@@ -1,5 +1,5 @@
 use crate::iw::iw_plus_from;
-use crate::{GoalCount, RelaxedPlan, SearchResult};
+use crate::{GoalCount, RelaxedPlan, SearchResult, WidthProblem};
 
 /// Serialized IW (SIW): reaches the goal one subgoal at a time.
 ///
@@ -21,7 +21,12 @@ use crate::{GoalCount, RelaxedPlan, SearchResult};
 /// but also in live states whose next subgoal needs a width above `max_k`.
 /// Node counts add up over all IW runs, failed ones included.
 pub fn siw<P: GoalCount>(problem: &P, max_k: usize) -> SearchResult<P::Action> {
-    serialize(problem, max_k, None::<fn(&P::State, &mut Vec<u32>)>)
+    serialize(
+        problem,
+        max_k,
+        None::<fn(&P::State, &mut Vec<u32>)>,
+        GoalCountDrop(problem),
+    )
 }
 
 /// SIW+ (Lipovetzky & Geffner, ECAI 2014): [`siw`] with IW+ in place of IW.
@@ -48,16 +53,63 @@ pub fn siw_plus<P: RelaxedPlan>(problem: &P, max_k: usize) -> SearchResult<P::Ac
         problem,
         max_k,
         Some(|s: &P::State, out: &mut Vec<u32>| problem.relaxed_plan_features(s, out)),
+        GoalCountDrop(problem),
     )
 }
 
-/// The loop behind [`siw`] and [`siw_plus`]: reaches one subgoal after
-/// another and concatenates the subplans. Each IW run is IW+ when `oracle`
-/// is set, plain IW otherwise.
-fn serialize<P, F>(problem: &P, max_k: usize, mut oracle: Option<F>) -> SearchResult<P::Action>
+/// How a serialized search picks its subgoals.
+pub(crate) trait Subgoals<S> {
+    /// What the test needs to know about a subproblem's start state,
+    /// computed once per subproblem.
+    type Anchor;
+
+    /// Summarizes `from`, the state a subproblem starts from.
+    fn anchor(&mut self, from: &S) -> Self::Anchor;
+
+    /// Whether `state` solves the subproblem that started at `anchor`.
+    fn reached(&self, anchor: &Self::Anchor, state: &S) -> bool;
+
+    /// Records that the search moved on to the subgoal `state`; returns
+    /// `false` to make the search give up instead.
+    fn advance(&mut self, _state: &S) -> bool {
+        true
+    }
+}
+
+/// The subgoals of [`siw`] and [`siw_plus`]: a goal state, or any state with
+/// fewer unsatisfied goals than the start of the subproblem.
+struct GoalCountDrop<'p, P>(&'p P);
+
+impl<P: GoalCount> Subgoals<P::State> for GoalCountDrop<'_, P> {
+    /// `#g` of the start state.
+    type Anchor = usize;
+
+    fn anchor(&mut self, from: &P::State) -> usize {
+        self.0.unsatisfied_goals(from)
+    }
+
+    fn reached(&self, g: &usize, state: &P::State) -> bool {
+        self.0.is_goal(state) || self.0.unsatisfied_goals(state) < *g
+    }
+}
+
+/// The loop behind [`siw`], [`siw_plus`] and [`siw_r`](crate::siw_r):
+/// reaches one subgoal after another and concatenates the subplans.
+///
+/// Each IW run is IW+ when `oracle` is set, plain IW otherwise. `subgoals`
+/// decides which states end a subproblem; only [`siw_r`](crate::siw_r)'s
+/// subgoals also stop the search when it moves on to a subgoal it passed
+/// before (a cycling sketch).
+pub(crate) fn serialize<P, F, G>(
+    problem: &P,
+    max_k: usize,
+    mut oracle: Option<F>,
+    mut subgoals: G,
+) -> SearchResult<P::Action>
 where
-    P: GoalCount,
+    P: WidthProblem,
     F: FnMut(&P::State, &mut Vec<u32>),
+    G: Subgoals<P::State>,
 {
     // The initial state counts once, even if no IW run is needed.
     let mut total = SearchResult {
@@ -73,11 +125,22 @@ where
     let mut plan = Vec::new();
 
     while !problem.is_goal(&state) {
-        let Some((subplan, next)) =
-            reach_subgoal(problem, &state, max_k, oracle.as_mut(), &mut total)
-        else {
+        let anchor = subgoals.anchor(&state);
+        let is_subgoal = |s: &P::State| subgoals.reached(&anchor, s);
+        let Some((subplan, next)) = reach_subgoal(
+            problem,
+            &state,
+            max_k,
+            oracle.as_mut(),
+            is_subgoal,
+            &mut total,
+        ) else {
             return total;
         };
+        if !subgoals.advance(&next) {
+            return total;
+        }
+
         plan.extend(subplan);
         state = next;
     }
@@ -86,23 +149,21 @@ where
     total
 }
 
-/// Iterated width from `state` until `#g` drops or the goal holds; returns
-/// the subplan and the state it reaches. Adds every run's counts to `total`.
+/// Iterated width from `state` until `is_subgoal` holds; returns the subplan
+/// and the state it reaches. Adds every run's counts to `total`.
 /// Each run is IW+ with `oracle`'s relaxed plan when it is set.
 fn reach_subgoal<P, F>(
     problem: &P,
     state: &P::State,
     max_k: usize,
     mut oracle: Option<&mut F>,
+    is_subgoal: impl Fn(&P::State) -> bool + Copy,
     total: &mut SearchResult<P::Action>,
 ) -> Option<(Vec<P::Action>, P::State)>
 where
-    P: GoalCount,
+    P: WidthProblem,
     F: FnMut(&P::State, &mut Vec<u32>),
 {
-    let g = problem.unsatisfied_goals(state);
-    let is_subgoal = |s: &P::State| problem.is_goal(s) || problem.unsatisfied_goals(s) < g;
-
     for k in 1..=max_k {
         let run_oracle = oracle.as_deref_mut();
         let (r, end) = iw_plus_from(problem, state.clone(), k, is_subgoal, run_oracle);
