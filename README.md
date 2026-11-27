@@ -81,6 +81,22 @@ A grid with a key and a door needs width 2, because the agent revisits cells aft
 cargo run --example key_door         # IW(1) fails, IW(2) succeeds
 ```
 
+More examples, each a realistic scenario that prints a comparison of node counts and plan lengths:
+
+| Example | Scenario | Shows |
+|---|---|---|
+| `warehouse` | A robot shelves parcels one at a time | Conjunctive goals: iterated width runs out of width, SIW and BFWS split the task by goal count |
+| `crafting` | A game NPC gathers, crafts and forges a sword (GOAP) | STRIPS actions with a hand-written relaxed plan: `siw_plus` and `bfws_r` |
+| `dungeon` | Validating a level with keys and doors | `hiw` with "keys held" as high-level state, and `ihiw` finding those features itself |
+| `courier` | A courier delivers packages across town | `siw_r` with a two-rule sketch, IW(1) per step |
+| `playtest` | A playtesting bot in a level of rooms | `rollout_iw`, `pi_iw` with a hand-written policy, and `pi_hiw` with rooms as high level |
+| `fd_task` | Any Fast Downward `output.sas` | Every planning search on a real task; needs `--features sas-plus` |
+
+```sh
+cargo run --release --example dungeon
+cargo run --release --features sas-plus --example fd_task -- path/to/output.sas
+```
+
 ## What "width" means
 
 A state's **novelty** is the size of the smallest set of its features that no earlier state in the search had all at once. A state that reaches a never-seen cell has novelty 1. A state whose cell and key flag were each seen before, but never together, has novelty 2. A state whose every feature combination was seen before has no novelty value; it counts as greater than any `k`.
