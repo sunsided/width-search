@@ -24,7 +24,7 @@ mod siw;
 mod sketch;
 
 pub use bfws::{bfws, bfws_r};
-pub use hiw::{hiw, ihiw};
+pub use hiw::{hiw, ihiw, pi_hiw};
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use rollout::{pi_iw, rollout_iw};
