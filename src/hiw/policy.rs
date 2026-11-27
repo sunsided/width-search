@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::rng::SplitMix64;
 use crate::rollout::{Outcome, Tree};
-use crate::{SearchResult, WidthProblem, extract_plan};
+use crate::{SearchResult, WidthProblem, extract_plan, sorted_set};
 
 /// π-HIW(1, 1) (Junyent, Jonsson & Gómez, ICAPS 2021), goal-directed:
 /// hierarchical IW with count-based Rollout IW at the high level and π-IW at
@@ -227,7 +227,7 @@ where
     /// new open node (returned) that takes over those features.
     fn admit(&mut self, n: usize, j: usize) -> Option<usize> {
         let state = self.nodes[n].tree.nodes[j].state.clone();
-        let features = self.high_features(&state);
+        let features = sorted_set(|out| (self.high)(&state, out));
         let depth = self.nodes[n].depth + 1;
         let novel: Vec<u32> = features
             .iter()
@@ -264,7 +264,7 @@ where
 
     /// Adds a high-level node for `state`, open, and returns its index.
     fn add_node(&mut self, state: P::State, origin: Option<(usize, usize)>, depth: usize) -> usize {
-        let features = self.high_features(&state);
+        let features = sorted_set(|out| (self.high)(&state, out));
         let seed = self.rng.next_u64();
         let mut tree = Tree::new(
             self.problem,
@@ -312,15 +312,6 @@ where
             self.close(m);
             stack.extend(self.nodes[m].children.iter().copied());
         }
-    }
-
-    /// The sorted, deduplicated high-level features of `state`.
-    fn high_features(&self, state: &P::State) -> Vec<u32> {
-        let mut out = Vec::new();
-        (self.high)(state, &mut out);
-        out.sort_unstable();
-        out.dedup();
-        out
     }
 
     /// The plan to node `j` of high-level node `h`'s tree: the paths through

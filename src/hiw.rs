@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
+use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan, sorted_set};
 
 /// Incremental HIW: discovers high-level features from pruned nodes.
 mod incremental;
@@ -18,7 +18,7 @@ pub use policy::pi_hiw;
 /// `high` pushes the high-level feature ids (`< num_high`) of a state; the
 /// low level uses [`WidthProblem::features`]. A high-level node is a state
 /// whose high-level features differ from its parent node's. The high level
-/// is a breadth-first IW(`w_high`) over these nodes, with novelty computed on
+/// is an IW(`w_high`) over these nodes, with novelty computed on
 /// high-level features. Expanding a high-level node runs IW(`w_low`) from its
 /// state, with a novelty table of its own:
 ///
@@ -43,8 +43,12 @@ pub use policy::pi_hiw;
 /// node keeps its low-level search; asking it for a successor resumes that
 /// search until it meets the next new high-level node, which is returned,
 /// or runs out. The high level asks its nodes for successors one at a time,
-/// in breadth-first order, so a goal under an early high-level successor is
-/// found before the rest of its parent's low-level search runs.
+/// round-robin: a node that returned a successor goes to the back of the
+/// queue, behind that successor. So a goal under an early high-level
+/// successor is found before the rest of its parent's low-level search runs.
+/// The order is not breadth-first: a node two high-level steps from the root
+/// can be generated before its parent's later siblings, and then claim
+/// high-level tuples first, so those siblings are pruned.
 ///
 /// # Panics
 ///
@@ -111,7 +115,7 @@ where
     };
 
     let root = problem.initial_state();
-    let root_high = search.high_features(&root);
+    let root_high = sorted_set(|out| (search.high)(&root, out));
     search.high_table.evaluate_and_insert(&root_high);
     if problem.is_goal(&root) {
         search.result.plan = Some(Vec::new());
@@ -178,16 +182,6 @@ where
         }
     }
 
-    /// The high-level features of `state`, sorted and deduplicated so that
-    /// two states compare equal exactly when they share the same set.
-    fn high_features(&self, state: &P::State) -> Vec<u32> {
-        let mut out = Vec::new();
-        (self.high)(state, &mut out);
-        out.sort_unstable();
-        out.dedup();
-        out
-    }
-
     /// Where a generated `state` goes, seen from a high-level node with
     /// high-level features `features` and low-level novelty table `table`;
     /// `None` if it is pruned. Updates the novelty tables it consults.
@@ -201,7 +195,7 @@ where
             return Some(Next::Goal);
         }
 
-        let high = self.high_features(state);
+        let high = sorted_set(|out| (self.high)(state, out));
         if high != features {
             return self
                 .high_table

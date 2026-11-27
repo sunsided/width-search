@@ -44,7 +44,8 @@ pub fn rollout_iw<P: WidthProblem>(problem: &P, seed: u64) -> SearchResult<P::Ac
 /// # Panics
 ///
 /// Panics if `policy` pushes a different number of weights than there are
-/// successors, or a weight that is negative or not finite.
+/// successors, a weight that is negative or not finite, or weights whose sum
+/// is not finite.
 pub fn pi_iw<P, F>(problem: &P, policy: F, seed: u64) -> SearchResult<P::Action>
 where
     P: WidthProblem,
@@ -291,6 +292,11 @@ where
             self.weights.iter().all(|w| w.is_finite() && *w >= 0.0),
             "policy weights must be finite and non-negative"
         );
+        // An infinite sum would make every weighted draw pick the last child.
+        assert!(
+            self.weights.iter().sum::<f64>().is_finite(),
+            "policy weights must have a finite sum"
+        );
     }
 
     /// Runs the depth-aware novelty test on `n`, updating the depth table
@@ -437,38 +443,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Walking from 0 to `len` on a line, one step either way.
-    struct Line {
-        /// The goal position, also the largest one.
-        len: u32,
-    }
-
-    impl WidthProblem for Line {
-        type State = u32;
-        type Action = i8;
-
-        fn initial_state(&self) -> u32 {
-            0
-        }
-        fn successors(&self, s: &u32, out: &mut Vec<(i8, u32)>) {
-            if *s > 0 {
-                out.push((-1, s - 1));
-            }
-            if *s < self.len {
-                out.push((1, s + 1));
-            }
-        }
-        fn features(&self, s: &u32, out: &mut Vec<u32>) {
-            out.push(*s);
-        }
-        fn num_features(&self) -> usize {
-            self.len as usize + 1
-        }
-        fn is_goal(&self, s: &u32) -> bool {
-            *s == self.len
-        }
-    }
+    use crate::test_problems::Line;
 
     /// The goal has width 1, so every seed reaches it, and along a line the
     /// only plan that survives the depth test is the shortest one.
@@ -518,6 +493,17 @@ mod tests {
             out.extend(succ.iter().map(|_| -1.0));
         };
         pi_iw(&Line { len: 3 }, negative, 0);
+    }
+
+    /// Weights that are finite one by one but overflow when summed break the
+    /// policy contract: position 1 has two successors of weight `f64::MAX`.
+    #[test]
+    #[should_panic(expected = "finite sum")]
+    fn rejects_weights_with_an_infinite_sum() {
+        let huge = |_: &u32, succ: &[(i8, u32)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|_| f64::MAX));
+        };
+        pi_iw(&Line { len: 3 }, huge, 0);
     }
 
     /// A policy must push exactly one weight per successor.

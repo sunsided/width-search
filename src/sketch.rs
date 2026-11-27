@@ -243,41 +243,9 @@ fn allowed(rules: &[Rule], from: &[u64], to: &[u64]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_problems::Line;
 
-    /// Walking from 0 to `len` on a line, one step either way. The only
-    /// sketch feature is the position.
-    struct Line {
-        /// The goal position, also the largest one.
-        len: u32,
-    }
-
-    impl WidthProblem for Line {
-        type State = u32;
-        type Action = i8;
-
-        fn initial_state(&self) -> u32 {
-            0
-        }
-        fn successors(&self, s: &u32, out: &mut Vec<(i8, u32)>) {
-            if *s > 0 {
-                out.push((-1, s - 1));
-            }
-            if *s < self.len {
-                out.push((1, s + 1));
-            }
-        }
-        fn features(&self, s: &u32, out: &mut Vec<u32>) {
-            out.push(*s);
-        }
-        fn num_features(&self) -> usize {
-            self.len as usize + 1
-        }
-        fn is_goal(&self, s: &u32) -> bool {
-            *s == self.len
-        }
-    }
-
-    /// The position as the single sketch feature.
+    /// The position as the single sketch feature of a [`Line`].
     #[expect(
         clippy::trivially_copy_pass_by_ref,
         reason = "matches the sketch feature closure signature"

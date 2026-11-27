@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use sas_plus::{Fact, OpId, State, Task};
 
-use crate::{GoalCount, RelaxedPlan, WidthProblem};
+use crate::{GoalCount, RelaxedPlan, WidthProblem, sorted_set};
 
 /// A [`Task`] viewed as a [`WidthProblem`]: one feature per fact `var = value`,
 /// and the number of unsatisfied goal facts as `#g`.
@@ -19,18 +19,6 @@ pub struct SasProblem<'a> {
     /// The task's effects and axioms as delete-free rules, for relaxed plans.
     /// Built on first use, so searches without relaxed plans never pay for it.
     rules: OnceLock<Vec<Rule>>,
-}
-
-/// The distinct feature ids of `features`, sorted ascending.
-///
-/// A fact that is both a precondition and an effect condition must count once
-/// in a rule's `h_add` sum, not twice.
-fn distinct(features: impl Iterator<Item = u32>) -> Vec<u32> {
-    let mut ids: Vec<u32> = features.collect();
-    ids.sort_unstable();
-    ids.dedup();
-
-    ids
 }
 
 /// A delete-free rule `conditions → head`: one effect of an operator (its
@@ -71,7 +59,8 @@ impl<'a> SasProblem<'a> {
     }
 
     /// One rule per operator effect (precondition plus effect conditions)
-    /// and one per axiom.
+    /// and one per axiom. Conditions are deduplicated: a fact that is both a
+    /// precondition and an effect condition counts once in `h_add`, not twice.
     fn build_rules(&self) -> Vec<Rule> {
         let fact = |f: &Fact| self.feature(f);
         let effects = self
@@ -82,14 +71,16 @@ impl<'a> SasProblem<'a> {
             .flat_map(|(id, op)| op.eff.iter().map(move |e| (id, op, e)));
         let mut rules: Vec<Rule> = effects
             .map(|(id, op, e)| Rule {
-                conditions: distinct(op.pre.iter().chain(&e.conditions).map(fact)),
+                conditions: sorted_set(|out| {
+                    out.extend(op.pre.iter().chain(&e.conditions).map(fact));
+                }),
                 head: fact(&e.fact),
                 op: Some(id),
                 cost: u64::from(op.cost),
             })
             .collect();
         rules.extend(self.task.axioms.iter().map(|a| Rule {
-            conditions: distinct(a.conditions.iter().map(fact)),
+            conditions: sorted_set(|out| out.extend(a.conditions.iter().map(fact))),
             head: fact(&a.head),
             op: None,
             cost: 0,
