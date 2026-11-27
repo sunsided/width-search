@@ -28,9 +28,14 @@ use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
 /// is a restricted IW(`w_high + w_low`), using `w_high`-tuples of high-level
 /// and `w_low`-tuples of low-level features. So good high-level features let
 /// it solve problems of width `w_high + w_low` while it expands at most
-/// `O(n_high^w_high · n_low^w_low)` states. Its search is resumed lazily in
-/// the paper; this version expands each high-level node to the end, in
-/// breadth-first order.
+/// `O(n_high^w_high · n_low^w_low)` states.
+///
+/// As in the paper, low-level searches are resumed lazily. Each high-level
+/// node keeps its low-level search; asking it for a successor resumes that
+/// search until it meets the next new high-level node, which is returned,
+/// or runs out. The high level asks its nodes for successors one at a time,
+/// in breadth-first order, so a goal under an early high-level successor is
+/// found before the rest of its parent's low-level search runs.
 ///
 /// # Panics
 ///
@@ -54,9 +59,7 @@ where
         high_table: NoveltyTable::new(num_high, w_high),
         w_low,
         nodes: Vec::new(),
-        open: VecDeque::new(),
         feats: Vec::new(),
-        succ: Vec::new(),
         result: SearchResult {
             plan: None,
             expanded: 0,
@@ -77,11 +80,18 @@ where
         parent: None,
         action: None,
     });
-    search.open.push_back((0, root_high));
-    while let Some((n, features)) = search.open.pop_front() {
-        if let Some(goal) = search.explore(n, &features) {
-            search.result.plan = Some(extract_plan(&search.nodes, goal));
-            break;
+    let mut open = VecDeque::from([LowSearch::new(&mut search, 0, root_high)]);
+    while let Some(mut low) = open.pop_front() {
+        match low.next_high(&mut search) {
+            Step::Goal(goal) => {
+                search.result.plan = Some(extract_plan(&search.nodes, goal));
+                break;
+            }
+            Step::High(node, features) => {
+                open.push_back(LowSearch::new(&mut search, node, features));
+                open.push_back(low);
+            }
+            Step::Done => {}
         }
     }
 
@@ -101,13 +111,8 @@ struct Search<'p, P: WidthProblem, H> {
     /// Node arena of all low-level trees; parent links cross between trees,
     /// so a plan is one path back to the root.
     nodes: Vec<Node<P::State, P::Action>>,
-    /// High-level nodes not yet expanded, breadth-first: the arena index of
-    /// each one's state and its sorted high-level features.
-    open: VecDeque<(usize, Vec<u32>)>,
     /// Reused buffer for the low-level features of a state.
     feats: Vec<u32>,
-    /// Reused buffer for successors.
-    succ: Vec<(P::Action, P::State)>,
     /// Node counts so far; `plan` is filled in by [`hiw`].
     result: SearchResult<P::Action>,
 }
@@ -125,40 +130,6 @@ where
         out.sort_unstable();
         out.dedup();
         out
-    }
-
-    /// Expands the high-level node at arena index `root`, whose high-level
-    /// features are `features`, by a low-level IW search from its state.
-    /// Queues the novel high-level nodes it meets; returns the arena index
-    /// of a goal node if one was generated.
-    fn explore(&mut self, root: usize, features: &[u32]) -> Option<usize> {
-        let mut table = NoveltyTable::new(self.problem.num_features(), self.w_low);
-        self.feats.clear();
-        self.problem
-            .features(&self.nodes[root].state, &mut self.feats);
-        table.evaluate_and_insert(&self.feats);
-
-        let mut open = VecDeque::from([root]);
-        let mut succ = std::mem::take(&mut self.succ);
-        while let Some(i) = open.pop_front() {
-            self.result.expanded += 1;
-            succ.clear();
-            self.problem.successors(&self.nodes[i].state, &mut succ);
-            for (action, state) in succ.drain(..) {
-                self.result.generated += 1;
-                if let Some(next) = self.classify(&state, features, &mut table) {
-                    let j = self.push(state, i, action);
-                    match next {
-                        Next::Goal => return Some(j),
-                        Next::Low => open.push_back(j),
-                        Next::High(high) => self.open.push_back((j, high)),
-                    }
-                }
-            }
-        }
-
-        self.succ = succ;
-        None
     }
 
     /// Where a generated `state` goes, seen from a high-level node with
@@ -199,6 +170,95 @@ where
     }
 }
 
+/// The resumable low-level IW search of one high-level node.
+struct LowSearch<P: WidthProblem> {
+    /// The node's sorted high-level features; states with others leave it.
+    features: Vec<u32>,
+    /// Low-level novelty of this search only.
+    table: NoveltyTable,
+    /// Arena indices of low-level nodes not yet expanded, breadth-first.
+    open: VecDeque<usize>,
+    /// Arena index of the node whose successors are being processed.
+    parent: usize,
+    /// Successors of `parent` not yet processed, in reverse order, so a
+    /// search paused mid-expansion resumes with the next one.
+    pending: Vec<(P::Action, P::State)>,
+}
+
+impl<P: WidthProblem> LowSearch<P> {
+    /// A search from the high-level node at arena index `root`, with sorted
+    /// high-level features `features`; records the root's features.
+    fn new<H>(search: &mut Search<'_, P, H>, root: usize, features: Vec<u32>) -> Self {
+        let mut table = NoveltyTable::new(search.problem.num_features(), search.w_low);
+        search.feats.clear();
+        search
+            .problem
+            .features(&search.nodes[root].state, &mut search.feats);
+        table.evaluate_and_insert(&search.feats);
+
+        Self {
+            features,
+            table,
+            open: VecDeque::from([root]),
+            parent: root,
+            pending: Vec::new(),
+        }
+    }
+
+    /// The high-level successor function: resumes the search until it
+    /// generates a goal or a novel high-level node, or runs out.
+    fn next_high<H>(&mut self, search: &mut Search<'_, P, H>) -> Step
+    where
+        H: Fn(&P::State, &mut Vec<u32>),
+    {
+        loop {
+            if self.pending.is_empty() && !self.expand_next(search) {
+                return Step::Done;
+            }
+
+            while let Some((action, state)) = self.pending.pop() {
+                search.result.generated += 1;
+                let Some(next) = search.classify(&state, &self.features, &mut self.table) else {
+                    continue;
+                };
+
+                let j = search.push(state, self.parent, action);
+                match next {
+                    Next::Goal => return Step::Goal(j),
+                    Next::Low => self.open.push_back(j),
+                    Next::High(features) => return Step::High(j, features),
+                }
+            }
+        }
+    }
+
+    /// Expands the next low-level node into `pending`; `false` if none is
+    /// left.
+    fn expand_next<H>(&mut self, search: &mut Search<'_, P, H>) -> bool {
+        let Some(i) = self.open.pop_front() else {
+            return false;
+        };
+
+        search.result.expanded += 1;
+        self.parent = i;
+        search
+            .problem
+            .successors(&search.nodes[i].state, &mut self.pending);
+        self.pending.reverse();
+        true
+    }
+}
+
+/// What a high-level successor call found.
+enum Step {
+    /// A goal node, at this arena index.
+    Goal(usize),
+    /// A new high-level node at this arena index, with these sorted features.
+    High(usize, Vec<u32>),
+    /// Nothing more: the low-level search is exhausted.
+    Done,
+}
+
 /// What happens to a generated state that survived pruning.
 enum Next {
     /// It is a goal: the search ends.
@@ -213,13 +273,22 @@ enum Next {
 mod tests {
     use super::*;
 
-    /// The corridor of the paper: positions `0..=len`, a key at the far end,
-    /// and the goal at position 0 with the key. The low-level feature is the
+    /// The corridor of the paper: positions `0..=len`, a key at `key_at`
+    /// (the far end in the paper), and the goal at position 0 with the key. The low-level feature is the
     /// position only, so revisiting position 0 with the key is not novel and
     /// IW(1) fails.
     struct Corridor {
-        /// The last position, where the key lies.
+        /// The last position.
         len: u32,
+        /// Where the key lies; picked up on entering that position.
+        key_at: u32,
+    }
+
+    impl Corridor {
+        /// A corridor with the key at its far end, as in the paper.
+        fn new(len: u32) -> Self {
+            Self { len, key_at: len }
+        }
     }
 
     impl WidthProblem for Corridor {
@@ -232,10 +301,10 @@ mod tests {
         }
         fn successors(&self, &(p, key): &(u32, bool), out: &mut Vec<(i8, (u32, bool))>) {
             if p > 0 {
-                out.push((-1, (p - 1, key)));
+                out.push((-1, (p - 1, key || p - 1 == self.key_at)));
             }
             if p < self.len {
-                out.push((1, (p + 1, key || p + 1 == self.len)));
+                out.push((1, (p + 1, key || p + 1 == self.key_at)));
             }
         }
         fn features(&self, &(p, _): &(u32, bool), out: &mut Vec<u32>) {
@@ -264,7 +333,7 @@ mod tests {
     /// two low-level searches, one per key value, where IW(1) fails.
     #[test]
     fn the_key_splits_the_corridor() {
-        let corridor = Corridor { len: 5 };
+        let corridor = Corridor::new(5);
         let r = hiw(&corridor, key, 1, 1, 1);
 
         assert!(crate::iw(&corridor, 1).plan.is_none());
@@ -275,11 +344,26 @@ mod tests {
         assert_eq!(r.expanded, 10, "positions 0..5 without, 5..1 with the key");
     }
 
+    /// With the key near the start of a long corridor, the root's low-level
+    /// search pauses at the key state; the search under it reaches the goal
+    /// before positions 3 to 10 without the key are ever expanded.
+    #[test]
+    fn low_level_searches_pause_at_new_high_level_states() {
+        let corridor = Corridor { len: 10, key_at: 2 };
+        let r = hiw(&corridor, key, 1, 1, 1);
+
+        assert_eq!(r.plan.as_deref(), Some(&[1, 1, -1, -1][..]));
+        assert_eq!(
+            r.expanded, 4,
+            "positions 0 and 1, then 2 and 1 with the key"
+        );
+    }
+
     /// A high-level feature that never changes leaves one high-level node,
     /// so HIW(1, 1) is IW(1) and fails on the corridor too.
     #[test]
     fn a_constant_high_level_feature_is_iw() {
-        let corridor = Corridor { len: 3 };
+        let corridor = Corridor::new(3);
         let constant = |_: &(u32, bool), out: &mut Vec<u32>| out.push(0);
         let r = hiw(&corridor, constant, 1, 1, 1);
 
@@ -293,13 +377,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "width bound must be at least 1")]
     fn rejects_high_width_zero() {
-        hiw(&Corridor { len: 0 }, key, 1, 0, 1);
+        hiw(&Corridor::new(0), key, 1, 0, 1);
     }
 
     /// Width 0 at the low level is rejected even when the root is a goal.
     #[test]
     #[should_panic(expected = "width bound must be at least 1")]
     fn rejects_low_width_zero() {
-        hiw(&Corridor { len: 0 }, key, 1, 1, 0);
+        hiw(&Corridor::new(0), key, 1, 1, 0);
     }
 }
