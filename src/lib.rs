@@ -7,19 +7,21 @@ mod bfws;
 mod iw;
 /// The novelty table shared by all searches.
 mod novelty;
+/// `#r`: relaxed-plan features reached on the path to a node.
+mod relevance;
 /// Rollout IW(1): depth-first rollouts with depth-aware novelty.
 mod rollout;
 /// Adapter that runs width-based search on a [`sas_plus::Task`].
 #[cfg(feature = "sas-plus")]
 pub mod sas;
-/// Serialized IW: one IW search per achieved goal.
+/// Serialized IW and SIW+: one IW (or IW+) search per achieved goal.
 mod siw;
 
 pub use bfws::{bfws, bfws_r};
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use rollout::rollout_iw;
-pub use siw::siw;
+pub use siw::{siw, siw_plus};
 
 /// A search problem described by successors and integer features.
 ///

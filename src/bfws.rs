@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::hash::Hash;
 
+use crate::relevance::{Relevance, RelevanceTracker};
 use crate::{GoalCount, Node, NoveltyTable, RelaxedPlan, SearchResult, extract_plan};
 
 /// BFWS(f) with `f = ⟨w_{#g}, #g⟩`: best-first search ordered by novelty
@@ -45,83 +46,6 @@ where
         k,
         Some(|s: &P::State, out: &mut Vec<u32>| problem.relaxed_plan_features(s, out)),
     )
-}
-
-/// The relaxed-plan features `#r` counts, from one recomputation.
-struct RelevantSet {
-    /// Relevant feature ids, sorted ascending, none true where it was computed.
-    features: Vec<u32>,
-}
-
-/// The `#r` bookkeeping of one search node.
-#[derive(Clone)]
-struct Relevance {
-    /// Index of the [`RelevantSet`] in force for this node.
-    set: usize,
-    /// Bitset over the positions of that set: which features were reached.
-    reached: Vec<u64>,
-    /// Number of set bits in `reached`: the node's `#r`.
-    count: usize,
-}
-
-/// State of the `#r` computation: the relaxed-plan oracle and every set it
-/// produced. `None` oracle means plain BFWS, where `#r` is always 0.
-struct RelevanceTracker<F> {
-    /// Computes relaxed-plan features of a state; `None` disables `#r`.
-    oracle: Option<F>,
-    /// All relevant sets computed so far, indexed by [`Relevance::set`].
-    sets: Vec<RelevantSet>,
-    /// Reused buffer for the oracle's output.
-    buf: Vec<u32>,
-}
-
-impl<F> RelevanceTracker<F> {
-    /// A fresh relevant set computed at a state with features `feats`;
-    /// `None` when `#r` is disabled.
-    fn recompute<S>(&mut self, state: &S, feats: &[u32]) -> Option<Relevance>
-    where
-        F: FnMut(&S, &mut Vec<u32>),
-    {
-        let oracle = self.oracle.as_mut()?;
-        self.buf.clear();
-        oracle(state, &mut self.buf);
-        let mut features: Vec<u32> = self
-            .buf
-            .iter()
-            .copied()
-            .filter(|f| !feats.contains(f))
-            .collect();
-        features.sort_unstable();
-        features.dedup();
-
-        let words = features.len().div_ceil(64);
-        self.sets.push(RelevantSet { features });
-
-        Some(Relevance {
-            set: self.sets.len() - 1,
-            reached: vec![0; words],
-            count: 0,
-        })
-    }
-
-    /// The child's relevance: the parent's, plus the relevant features true
-    /// in the child (`feats`).
-    fn extend(&self, parent: &Relevance, feats: &[u32]) -> Relevance {
-        let set = &self.sets[parent.set].features;
-        let mut child = parent.clone();
-        for f in feats {
-            let Ok(pos) = set.binary_search(f) else {
-                continue;
-            };
-            let (word, bit) = (pos / 64, 1u64 << (pos % 64));
-            if child.reached[word] & bit == 0 {
-                child.reached[word] |= bit;
-                child.count += 1;
-            }
-        }
-
-        child
-    }
 }
 
 /// The `#g` and `#r` of a node: what its novelty is partitioned by.
@@ -186,11 +110,7 @@ where
         problem,
         k,
         tables: HashMap::new(),
-        tracker: RelevanceTracker {
-            oracle,
-            sets: Vec::new(),
-            buf: Vec::new(),
-        },
+        tracker: RelevanceTracker::new(oracle),
         feats: Vec::new(),
     };
     let mut seen: HashSet<P::State> = HashSet::new();

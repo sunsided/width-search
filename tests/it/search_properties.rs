@@ -5,7 +5,7 @@
 use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
-use width_search::{bfws, bfws_r, iterated_width, rollout_iw, sas::SasProblem, siw};
+use width_search::{bfws, bfws_r, iterated_width, rollout_iw, sas::SasProblem, siw, siw_plus};
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
 /// Conditional effects and derived variables are drawn too, so the adapter
@@ -84,6 +84,19 @@ proptest! {
     fn siw_plans_are_valid(task in task(), max_k in 1usize..=2) {
         let solvable = task.perfect_heuristic()(&task.initial).is_some();
         let plan = siw(&SasProblem::new(&task), max_k).plan;
+
+        if let Some(plan) = plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// SIW+ may give up like SIW, but any plan it returns is valid, and
+    /// none is returned for an unsolvable task.
+    #[test]
+    fn siw_plus_plans_are_valid(task in task(), max_k in 1usize..=2) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let plan = siw_plus(&SasProblem::new(&task), max_k).plan;
 
         if let Some(plan) = plan {
             prop_assert!(solvable);
