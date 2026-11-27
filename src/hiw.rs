@@ -2,6 +2,11 @@ use std::collections::VecDeque;
 
 use crate::{Node, NoveltyTable, SearchResult, WidthProblem, extract_plan};
 
+/// Incremental HIW: discovers high-level features from pruned nodes.
+mod incremental;
+
+pub use incremental::ihiw;
+
 /// Hierarchical IW, HIW(`w_high`, `w_low`) (Junyent, Jonsson & Gómez,
 /// ICAPS 2021): IW over high-level features, where each high-level state is
 /// explored by its own low-level IW search.
@@ -52,6 +57,38 @@ where
     P: WidthProblem,
     H: Fn(&P::State, &mut Vec<u32>),
 {
+    run(problem, high, num_high, w_high, w_low, false).result
+}
+
+/// What one HIW run leaves behind, for [`ihiw`].
+pub(crate) struct Run<P: WidthProblem> {
+    /// Plan and node counts.
+    pub result: SearchResult<P::Action>,
+    /// The node arena of every low-level tree, linked by parent indices.
+    pub nodes: Vec<Node<P::State, P::Action>>,
+    /// Every pruned state with the arena index of its parent; empty unless
+    /// requested.
+    pub pruned: Vec<(usize, P::State)>,
+}
+
+/// The search behind [`hiw`]; also logs pruned states when `log_pruned` is
+/// set, which [`ihiw`] needs.
+///
+/// # Panics
+///
+/// As [`hiw`].
+pub(crate) fn run<P, H>(
+    problem: &P,
+    high: H,
+    num_high: usize,
+    w_high: usize,
+    w_low: usize,
+    log_pruned: bool,
+) -> Run<P>
+where
+    P: WidthProblem,
+    H: Fn(&P::State, &mut Vec<u32>),
+{
     assert!(w_high >= 1 && w_low >= 1, "width bound must be at least 1");
     let mut search = Search {
         problem,
@@ -59,6 +96,8 @@ where
         high_table: NoveltyTable::new(num_high, w_high),
         w_low,
         nodes: Vec::new(),
+        log_pruned,
+        pruned: Vec::new(),
         feats: Vec::new(),
         result: SearchResult {
             plan: None,
@@ -72,7 +111,7 @@ where
     search.high_table.evaluate_and_insert(&root_high);
     if problem.is_goal(&root) {
         search.result.plan = Some(Vec::new());
-        return search.result;
+        return search.finish();
     }
 
     search.nodes.push(Node {
@@ -95,7 +134,7 @@ where
         }
     }
 
-    search.result
+    search.finish()
 }
 
 /// The state of one HIW run.
@@ -111,6 +150,10 @@ struct Search<'p, P: WidthProblem, H> {
     /// Node arena of all low-level trees; parent links cross between trees,
     /// so a plan is one path back to the root.
     nodes: Vec<Node<P::State, P::Action>>,
+    /// Whether pruned states go into `pruned`.
+    log_pruned: bool,
+    /// Pruned states with their parents' arena indices, if `log_pruned`.
+    pruned: Vec<(usize, P::State)>,
     /// Reused buffer for the low-level features of a state.
     feats: Vec<u32>,
     /// Node counts so far; `plan` is filled in by [`hiw`].
@@ -122,6 +165,15 @@ where
     P: WidthProblem,
     H: Fn(&P::State, &mut Vec<u32>),
 {
+    /// Ends the run, handing over what [`Run`] keeps.
+    fn finish(self) -> Run<P> {
+        Run {
+            result: self.result,
+            nodes: self.nodes,
+            pruned: self.pruned,
+        }
+    }
+
     /// The high-level features of `state`, sorted and deduplicated so that
     /// two states compare equal exactly when they share the same set.
     fn high_features(&self, state: &P::State) -> Vec<u32> {
@@ -219,6 +271,9 @@ impl<P: WidthProblem> LowSearch<P> {
             while let Some((action, state)) = self.pending.pop() {
                 search.result.generated += 1;
                 let Some(next) = search.classify(&state, &self.features, &mut self.table) else {
+                    if search.log_pruned {
+                        search.pruned.push((self.parent, state));
+                    }
                     continue;
                 };
 
@@ -270,24 +325,31 @@ enum Next {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// The corridor of the paper: positions `0..=len`, a key at `key_at`
     /// (the far end in the paper), and the goal at position 0 with the key. The low-level feature is the
     /// position only, so revisiting position 0 with the key is not novel and
     /// IW(1) fails.
-    struct Corridor {
+    pub(crate) struct Corridor {
         /// The last position.
-        len: u32,
+        pub len: u32,
         /// Where the key lies; picked up on entering that position.
-        key_at: u32,
+        pub key_at: u32,
+        /// Whether holding the key is a low-level feature too (id `len + 1`),
+        /// as atoms of a planning task would make it.
+        pub key_feature: bool,
     }
 
     impl Corridor {
         /// A corridor with the key at its far end, as in the paper.
-        fn new(len: u32) -> Self {
-            Self { len, key_at: len }
+        pub fn new(len: u32) -> Self {
+            Self {
+                len,
+                key_at: len,
+                key_feature: false,
+            }
         }
     }
 
@@ -307,11 +369,14 @@ mod tests {
                 out.push((1, (p + 1, key || p + 1 == self.key_at)));
             }
         }
-        fn features(&self, &(p, _): &(u32, bool), out: &mut Vec<u32>) {
+        fn features(&self, &(p, key): &(u32, bool), out: &mut Vec<u32>) {
             out.push(p);
+            if key && self.key_feature {
+                out.push(self.len + 1);
+            }
         }
         fn num_features(&self) -> usize {
-            self.len as usize + 1
+            self.len as usize + 2
         }
         fn is_goal(&self, &(p, key): &(u32, bool)) -> bool {
             p == 0 && key
@@ -349,7 +414,11 @@ mod tests {
     /// before positions 3 to 10 without the key are ever expanded.
     #[test]
     fn low_level_searches_pause_at_new_high_level_states() {
-        let corridor = Corridor { len: 10, key_at: 2 };
+        let corridor = Corridor {
+            len: 10,
+            key_at: 2,
+            key_feature: false,
+        };
         let r = hiw(&corridor, key, 1, 1, 1);
 
         assert_eq!(r.plan.as_deref(), Some(&[1, 1, -1, -1][..]));

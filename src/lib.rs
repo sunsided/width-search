@@ -11,6 +11,8 @@ mod iw;
 mod novelty;
 /// `#r`: relaxed-plan features reached on the path to a node.
 mod relevance;
+/// A seeded `SplitMix64` generator for randomized searches.
+mod rng;
 /// Rollout IW(1) and π-IW: depth-first rollouts with depth-aware novelty.
 mod rollout;
 /// Adapter that runs width-based search on a [`sas_plus::Task`].
@@ -22,7 +24,7 @@ mod siw;
 mod sketch;
 
 pub use bfws::{bfws, bfws_r};
-pub use hiw::hiw;
+pub use hiw::{hiw, ihiw};
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use rollout::{pi_iw, rollout_iw};
