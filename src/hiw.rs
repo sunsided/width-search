@@ -47,7 +47,7 @@ where
     P: WidthProblem,
     H: Fn(&P::State, &mut Vec<u32>),
 {
-    assert!(w_low >= 1, "width bound must be at least 1");
+    assert!(w_high >= 1 && w_low >= 1, "width bound must be at least 1");
     let mut search = Search {
         problem,
         high,
@@ -286,6 +286,14 @@ mod tests {
         let iw = crate::iw(&corridor, 1);
         assert!(r.plan.is_none());
         assert_eq!((r.expanded, r.generated), (iw.expanded, iw.generated));
+    }
+
+    /// Width 0 at the high level is rejected up front, before any table is
+    /// built.
+    #[test]
+    #[should_panic(expected = "width bound must be at least 1")]
+    fn rejects_high_width_zero() {
+        hiw(&Corridor { len: 0 }, key, 1, 0, 1);
     }
 
     /// Width 0 at the low level is rejected even when the root is a goal.
