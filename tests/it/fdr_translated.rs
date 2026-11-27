@@ -1,7 +1,7 @@
 //! Width-based search on real Fast Downward translator output.
 
 use sas_plus::fdr::SasFile;
-use width_search::{bfws, iterated_width, sas::SasProblem};
+use width_search::{bfws, iterated_width, sas::SasProblem, siw, siw_plus};
 
 /// Parses `tests/fixtures/translated/<name>/output.sas`.
 fn load(name: &str) -> SasFile {
@@ -37,4 +37,31 @@ fn single_atom_goal_has_width_2() {
     let (width, r) = iterated_width(&SasProblem::new(&task), 2);
     assert_eq!(width, Some(2));
     assert_eq!(task.validate_plan(&r.plan.unwrap()), Some(3));
+}
+
+/// SIW+ reaches every subgoal of the translated tasks at width 1, where
+/// plain SIW needs width 2 on all but bw-large-a: partitioning novelty by
+/// `#r` keeps the states that IW(1) prunes on the way to a subgoal.
+#[test]
+fn siw_plus_solves_the_benchmarks_at_width_1() {
+    for name in [
+        "gripper-2",
+        "sussman-anomaly",
+        "gripper-4",
+        "bw-large-a",
+        "logistics-e",
+    ] {
+        let task = load(name).to_task();
+        let problem = SasProblem::new(&task);
+        let plan = siw_plus(&problem, 1)
+            .plan
+            .unwrap_or_else(|| panic!("{name}: no plan"));
+
+        assert!(task.validate_plan(&plan).is_some(), "{name}: invalid plan");
+        assert_eq!(
+            siw(&problem, 1).plan.is_some(),
+            name == "bw-large-a",
+            "{name}"
+        );
+    }
 }
