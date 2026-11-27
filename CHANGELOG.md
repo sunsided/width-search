@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/sunsided/width-search/compare/v0.3.1...v0.4.0) - 2026-11-27
+
+### Added
+
+- Add six scenario examples, one per family of searches
+- Add π-HIW, count-based Rollout IW over high-level states
+- Add IHIW, HIW that discovers its own high-level features
+- Add hierarchical IW, HIW(w_high, w_low)
+- Add SIW-R, serialized IW with subgoals from sketch rules
+- Add π-IW, Rollout IW guided by a policy
+- Add SIW+, serialized IW with novelty partitioned by #r
+
+### Changed
+
+- Explain a missing task file and room borders in the examples
+- Resume HIW's low-level searches lazily, as in the paper
+- Assert both HIW widths up front
+- Say that #r in SIW+ skips facts true at the run root
+
+### Fixed
+
+- Fix HIW order docs and reject infinite π-IW weight sums
+
 ## [0.3.1](https://github.com/sunsided/width-search/compare/v0.3.0...v0.3.1) - 2026-11-22
 
 ### Changed
