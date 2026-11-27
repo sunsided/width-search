@@ -3,6 +3,8 @@
 
 /// Best-first width search: BFWS(⟨w_{#g}, #g⟩) and BFWS(⟨w_{#g,#r}, #g⟩).
 mod bfws;
+/// Hierarchical IW: IW over high-level features, refined by IW per high-level state.
+mod hiw;
 /// IW(k) and iterated width.
 mod iw;
 /// The novelty table shared by all searches.
@@ -20,6 +22,7 @@ mod siw;
 mod sketch;
 
 pub use bfws::{bfws, bfws_r};
+pub use hiw::hiw;
 pub use iw::{iterated_width, iw};
 pub use novelty::NoveltyTable;
 pub use rollout::{pi_iw, rollout_iw};

@@ -6,7 +6,7 @@ use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{
-    Condition, Effect, GoalCount, Rule, bfws, bfws_r, iterated_width, pi_iw, rollout_iw,
+    Condition, Effect, GoalCount, Rule, bfws, bfws_r, hiw, iterated_width, iw, pi_iw, rollout_iw,
     sas::SasProblem, siw, siw_plus, siw_r,
 };
 
@@ -158,5 +158,35 @@ proptest! {
 
         prop_assert_eq!(&r.plan, &expected.plan);
         prop_assert_eq!((r.expanded, r.generated), (expected.expanded, expected.generated));
+    }
+
+    /// HIW without high-level features is IW at the low level: same plan,
+    /// same node counts.
+    #[test]
+    fn hiw_without_high_level_features_is_iw(task in task(), k in 1usize..=2) {
+        let problem = SasProblem::new(&task);
+        let r = hiw(&problem, |_: &_, _: &mut Vec<u32>| {}, 0, 1, k);
+        let expected = iw(&problem, k);
+
+        prop_assert_eq!(&r.plan, &expected.plan);
+        prop_assert_eq!((r.expanded, r.generated), (expected.expanded, expected.generated));
+    }
+
+    /// HIW with `#g` as the high-level feature returns only valid plans and
+    /// none for an unsolvable task.
+    #[test]
+    fn hiw_plans_are_valid(task in task(), w_high in 1usize..=2, w_low in 1usize..=2) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let problem = SasProblem::new(&task);
+        let goals = task.goal.len();
+        let goal_count = |s: &_, out: &mut Vec<u32>| {
+            out.push(u32::try_from(problem.unsatisfied_goals(s)).unwrap());
+        };
+        let plan = hiw(&problem, goal_count, goals + 1, w_high, w_low).plan;
+
+        if let Some(plan) = plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
     }
 }

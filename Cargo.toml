@@ -1,6 +1,6 @@
 [package]
 name = "width-search"
-description = "Width-based search without heuristics: novelty tables, Iterated Width (IW), Serialized IW, SIW+, SIW-R with sketches, BFWS, Rollout IW and π-IW for planning and games"
+description = "Width-based search without heuristics: novelty tables, Iterated Width (IW), hierarchical IW, Serialized IW, SIW+, SIW-R with sketches, BFWS, Rollout IW and π-IW for planning and games"
 version = "0.3.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
