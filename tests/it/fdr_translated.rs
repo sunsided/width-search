@@ -1,7 +1,7 @@
 //! Width-based search on real Fast Downward translator output.
 
 use sas_plus::fdr::SasFile;
-use width_search::{bfws, iterated_width, sas::SasProblem, siw, siw_plus};
+use width_search::{bfws, ihiw, iterated_width, iw, sas::SasProblem, siw, siw_plus};
 
 /// Parses `tests/fixtures/translated/<name>/output.sas`.
 fn load(name: &str) -> SasFile {
@@ -63,5 +63,25 @@ fn siw_plus_solves_the_benchmarks_at_width_1() {
             name == "bw-large-a",
             "{name}"
         );
+    }
+}
+
+/// IHIW(1, 1) solves the translated tasks IW(2) solves: gripper-2 and
+/// sussman-anomaly, where IW(1) fails, by promoting features found in its
+/// pruned states. Like IW(2), it fails on the other three.
+#[test]
+fn ihiw_matches_iw2_coverage() {
+    for name in ["gripper-2", "sussman-anomaly", "gripper-4"] {
+        let task = load(name).to_task();
+        let problem = SasProblem::new(&task);
+        let iw2 = iw(&problem, 2).plan.is_some();
+        for seed in 0..3 {
+            let r = ihiw(&problem, 1, 1, seed);
+
+            assert_eq!(r.plan.is_some(), iw2, "{name} seed {seed}");
+            if let Some(plan) = r.plan {
+                assert!(task.validate_plan(&plan).is_some(), "{name} seed {seed}");
+            }
+        }
     }
 }

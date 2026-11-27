@@ -1,3 +1,4 @@
+use crate::rng::SplitMix64;
 use crate::{Node, SearchResult, WidthProblem, extract_plan};
 
 /// Rollout IW(1) (Bandres, Bonet & Geffner, AAAI 2018), goal-directed.
@@ -121,8 +122,8 @@ struct Tree<'p, P: WidthProblem, F> {
     meta: Vec<Meta>,
     /// Smallest depth at which each feature was reached; `usize::MAX` if never.
     depth_of: Vec<usize>,
-    /// Pseudo-random state for child selection (`SplitMix64`).
-    rng: u64,
+    /// Random source for child selection.
+    rng: SplitMix64,
     /// Reused buffer for the features of a state.
     feats: Vec<u32>,
     /// Reused buffer for successors.
@@ -145,7 +146,7 @@ where
             nodes: Vec::new(),
             meta: Vec::new(),
             depth_of: vec![usize::MAX; problem.num_features()],
-            rng: seed,
+            rng: SplitMix64::new(seed),
             feats: Vec::new(),
             succ: Vec::new(),
             result: SearchResult {
@@ -296,7 +297,7 @@ where
     /// An unsolved child of `n` drawn with probability proportional to its
     /// weight; `None` if no unsolved child has a positive weight.
     fn pick_weighted_child(&mut self, n: usize) -> Option<usize> {
-        let unit = self.next_unit();
+        let unit = self.rng.unit();
         let meta = &self.meta;
         let candidates = || {
             meta[n]
@@ -333,8 +334,7 @@ where
             return None;
         }
 
-        // shortcut: modulo bias is negligible for branching factors far below 2^64.
-        let pick = usize::try_from(self.next_random() % unsolved as u64).expect("below a usize");
+        let pick = self.rng.below(unsolved);
         self.meta[n]
             .children
             .as_deref()
@@ -383,21 +383,6 @@ where
         });
 
         self.nodes.len() - 1
-    }
-
-    /// A pseudo-random number in `[0, 1)` with 32 bits of resolution.
-    fn next_unit(&mut self) -> f64 {
-        let high = u32::try_from(self.next_random() >> 32).expect("32 high bits fit a u32");
-        f64::from(high) / 4_294_967_296.0
-    }
-
-    /// The next `SplitMix64` output.
-    fn next_random(&mut self) -> u64 {
-        self.rng = self.rng.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.rng;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
     }
 }
 

@@ -6,8 +6,8 @@ use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
 use width_search::{
-    Condition, Effect, GoalCount, Rule, bfws, bfws_r, hiw, iterated_width, iw, pi_iw, rollout_iw,
-    sas::SasProblem, siw, siw_plus, siw_r,
+    Condition, Effect, GoalCount, Rule, bfws, bfws_r, hiw, ihiw, iterated_width, iw, pi_iw,
+    rollout_iw, sas::SasProblem, siw, siw_plus, siw_r,
 };
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
@@ -185,6 +185,23 @@ proptest! {
         let plan = hiw(&problem, goal_count, goals + 1, w_high, w_low).plan;
 
         if let Some(plan) = plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// IHIW returns only valid plans and none for an unsolvable task, and
+    /// the same seed gives the same result.
+    #[test]
+    fn ihiw_plans_are_valid_and_seeded(task in task(), seed in any::<u64>()) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let problem = SasProblem::new(&task);
+        let r = ihiw(&problem, 1, 1, seed);
+        let again = ihiw(&problem, 1, 1, seed);
+
+        prop_assert_eq!(&r.plan, &again.plan);
+        prop_assert_eq!((r.expanded, r.generated), (again.expanded, again.generated));
+        if let Some(plan) = r.plan {
             prop_assert!(solvable);
             prop_assert!(task.validate_plan(&plan).is_some());
         }
