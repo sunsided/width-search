@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/crates/l/width-search)](https://github.com/sunsided/width-search#license)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 
-Width-based search (Lipovetzky & Geffner) for planning and search problems: novelty tables, IW(k), iterated width, serialized IW (SIW) and SIW+, BFWS(⟨w_{#g}, #g⟩), BFWS with relaxed-plan counts `#r`, and Rollout IW(1). These searches need no heuristic: they prune every state that makes no new combination of features true, which bounds IW(k) to `O(n^k)` expansions for `n` features, however large the raw state space is.
+Width-based search (Lipovetzky & Geffner) for planning and search problems: novelty tables, IW(k), iterated width, serialized IW (SIW) and SIW+, BFWS(⟨w_{#g}, #g⟩), BFWS with relaxed-plan counts `#r`, Rollout IW(1), and π-IW, Rollout IW guided by a policy. These searches need no heuristic: they prune every state that makes no new combination of features true, which bounds IW(k) to `O(n^k)` expansions for `n` features, however large the raw state space is.
 
 Anything that can enumerate successors and describe states as integer features implements `WidthProblem`: planning atoms, grid cells, RAM bytes. The `sas-plus` feature adds an adapter for `sas_plus::Task`, with goal counts and relaxed plans for BFWS. On the bundled planning fixtures, the expansion counts match LAPKT for IW and stay close for the other searches (see [Compared with LAPKT](https://github.com/sunsided/width-search#compared-with-lapkt)).
 
@@ -113,6 +113,7 @@ Classic searches rank states by distance: the cost so far (BFS, Dijkstra), plus 
 | **BFWS**        | successors, features, goal count      | no                                                        | novelty tables plus open list         | conjunctive goals (collect all keys, reach all switches)              |
 | **BFWS `#r`**   | as BFWS, plus relaxed-plan features   | no                                                        | as BFWS, plus a relaxed plan per drop in `#g` | planning tasks where a relaxed plan says which facts matter     |
 | **Rollout IW(1)** | successors, features                | no                                                        | tree of rollouts                      | simulators where breadth-first layers are too wide (Atari)            |
+| **π-IW**        | as Rollout IW, plus a policy          | no                                                        | as Rollout IW                         | simulators with a learned or hand-written policy to steer rollouts    |
 
 **Pros**
 
@@ -156,6 +157,7 @@ Poor fits:
 - `bfws(problem, k)`: BFWS(⟨w_{#g}, #g⟩). Novelty is computed per value of `#g`.
 - `bfws_r(problem, k)`: BFWS(⟨w_{#g,#r}, #g⟩), LAPKT's `BFWS-f5`. `#r` counts how many facts of a relaxed plan the path to a state has reached. The relaxed plan is recomputed at every state where `#g` drops. Implement `RelaxedPlan` to use it; `SasProblem` does, with `h_add` best supporters.
 - `rollout_iw(problem, seed)`: Rollout IW(1) (Bandres, Bonet & Geffner, AAAI 2018). It runs depth-first rollouts and prunes a node unless it reaches some feature at a smaller depth than before. The paper uses it to pick actions within a time budget. This version runs until it finds a goal or the root is solved. It reaches every width-1 goal, but its plans need not be shortest.
+- `pi_iw(problem, policy, seed)`: π-IW (Junyent, Jonsson & Gómez, ICAPS 2019), Rollout IW(1) with rollouts guided by a policy. At each expansion the policy closure weights the successors, for example with a neural network's action probabilities, and rollouts move to an unsolved child in proportion to its weight. Children of weight 0 come last, so π-IW still reaches every width-1 goal. The paper also trains the policy on the planner's choices; that loop is up to the caller.
 
 ## Compared with LAPKT
 

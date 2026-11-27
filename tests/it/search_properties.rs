@@ -5,7 +5,9 @@
 use proptest::prelude::*;
 use sas_plus::Task;
 use sas_plus::random::{RandomTaskParams, random_task};
-use width_search::{bfws, bfws_r, iterated_width, rollout_iw, sas::SasProblem, siw, siw_plus};
+use width_search::{
+    bfws, bfws_r, iterated_width, pi_iw, rollout_iw, sas::SasProblem, siw, siw_plus,
+};
 
 /// A random task from a seed and small size parameters, so `h*` stays cheap.
 /// Conditional effects and derived variables are drawn too, so the adapter
@@ -115,6 +117,23 @@ proptest! {
 
         prop_assert_eq!(&r.plan, &again.plan);
         prop_assert_eq!((r.expanded, r.generated), (again.expanded, again.generated));
+        if let Some(plan) = r.plan {
+            prop_assert!(solvable);
+            prop_assert!(task.validate_plan(&plan).is_some());
+        }
+    }
+
+    /// π-IW with a policy that hashes each successor to a weight in 0..=2,
+    /// zeros included, terminates and returns only valid plans, none for an
+    /// unsolvable task.
+    #[test]
+    fn pi_iw_plans_are_valid(task in task(), seed in any::<u64>()) {
+        let solvable = task.perfect_heuristic()(&task.initial).is_some();
+        let policy = |_: &_, succ: &[(usize, _)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|&(a, _)| f64::from(u8::try_from(a % 3).unwrap())));
+        };
+        let r = pi_iw(&SasProblem::new(&task), policy, seed);
+
         if let Some(plan) = r.plan {
             prop_assert!(solvable);
             prop_assert!(task.validate_plan(&plan).is_some());
