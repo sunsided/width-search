@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::Hash;
 
@@ -153,6 +154,7 @@ where
         rules,
         features,
         passed: HashSet::from([problem.initial_state()]),
+        buf: RefCell::new(Vec::new()),
     };
 
     serialize(
@@ -173,6 +175,9 @@ struct SketchSubgoals<'p, P: WidthProblem, F> {
     features: F,
     /// Every state a subproblem started from so far, the initial one included.
     passed: HashSet<P::State>,
+    /// Reused buffer for the feature values of a candidate subgoal, so the
+    /// per-state test does not allocate.
+    buf: RefCell<Vec<u64>>,
 }
 
 impl<P, F> SketchSubgoals<'_, P, F>
@@ -180,11 +185,20 @@ where
     P: WidthProblem,
     F: Fn(&P::State, &mut Vec<u64>),
 {
-    /// The sketch feature values of `state`.
+    /// The sketch feature values of `state`, in a new vector.
     fn values(&self, state: &P::State) -> Vec<u64> {
         let mut out = Vec::new();
         (self.features)(state, &mut out);
         out
+    }
+
+    /// Whether some rule allows the change from `from_values` to the
+    /// feature values of `state`, computed into the reused buffer.
+    fn allows(&self, from_values: &[u64], state: &P::State) -> bool {
+        let mut buf = self.buf.borrow_mut();
+        buf.clear();
+        (self.features)(state, &mut buf);
+        allowed(self.rules, from_values, &buf)
     }
 }
 
@@ -202,8 +216,7 @@ where
     }
 
     fn reached(&self, (from, from_values): &Self::Anchor, state: &P::State) -> bool {
-        self.problem.is_goal(state)
-            || (state != from && allowed(self.rules, from_values, &self.values(state)))
+        self.problem.is_goal(state) || (state != from && self.allows(from_values, state))
     }
 
     /// A subgoal passed before means the deterministic search would cycle.

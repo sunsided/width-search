@@ -97,8 +97,9 @@ impl<P: GoalCount> Subgoals<P::State> for GoalCountDrop<'_, P> {
 /// reaches one subgoal after another and concatenates the subplans.
 ///
 /// Each IW run is IW+ when `oracle` is set, plain IW otherwise. `subgoals`
-/// decides which states end a subproblem, and may stop the search when it
-/// moves on to a subgoal (as a cycling sketch does).
+/// decides which states end a subproblem; only [`siw_r`](crate::siw_r)'s
+/// subgoals also stop the search when it moves on to a subgoal it passed
+/// before (a cycling sketch).
 pub(crate) fn serialize<P, F, G>(
     problem: &P,
     max_k: usize,
