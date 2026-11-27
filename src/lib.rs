@@ -94,6 +94,17 @@ pub(crate) struct Node<S, A> {
     pub action: Option<A>,
 }
 
+/// The feature ids `fill` pushes, sorted and deduplicated, so that two sets
+/// compare equal exactly when they hold the same ids.
+pub(crate) fn sorted_set(fill: impl FnOnce(&mut Vec<u32>)) -> Vec<u32> {
+    let mut ids = Vec::new();
+    fill(&mut ids);
+    ids.sort_unstable();
+    ids.dedup();
+
+    ids
+}
+
 /// Follows parent links from node `i` back to the root and returns the
 /// actions along the way, in execution order.
 pub(crate) fn extract_plan<S, A: Clone>(nodes: &[Node<S, A>], mut i: usize) -> Vec<A> {
@@ -110,4 +121,43 @@ pub(crate) fn extract_plan<S, A: Clone>(nodes: &[Node<S, A>], mut i: usize) -> V
 
     plan.reverse();
     plan
+}
+
+/// Small problems shared by the unit tests of several modules.
+#[cfg(test)]
+pub(crate) mod test_problems {
+    use crate::WidthProblem;
+
+    /// Walking from 0 to `len` on a line, one step either way. The only
+    /// feature is the position.
+    pub(crate) struct Line {
+        /// The goal position, also the largest one.
+        pub len: u32,
+    }
+
+    impl WidthProblem for Line {
+        type State = u32;
+        type Action = i8;
+
+        fn initial_state(&self) -> u32 {
+            0
+        }
+        fn successors(&self, s: &u32, out: &mut Vec<(i8, u32)>) {
+            if *s > 0 {
+                out.push((-1, s - 1));
+            }
+            if *s < self.len {
+                out.push((1, s + 1));
+            }
+        }
+        fn features(&self, s: &u32, out: &mut Vec<u32>) {
+            out.push(*s);
+        }
+        fn num_features(&self) -> usize {
+            self.len as usize + 1
+        }
+        fn is_goal(&self, s: &u32) -> bool {
+            *s == self.len
+        }
+    }
 }

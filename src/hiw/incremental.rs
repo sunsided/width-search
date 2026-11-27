@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::run;
 use crate::rng::SplitMix64;
-use crate::{Node, SearchResult, WidthProblem};
+use crate::{Node, SearchResult, WidthProblem, sorted_set};
 
 /// Incremental HIW, IHIW(`w_high`, `w_low`) (Junyent, Jonsson & Gómez,
 /// ICAPS 2021, Algorithms 1 and 2): [`hiw`](super::hiw) that picks its own
@@ -129,8 +129,8 @@ fn feature_candidates<P: WidthProblem>(
         return Vec::new();
     }
 
-    let own = sorted_features(problem, state);
-    let from_parent = sorted_features(problem, &nodes[parent].state);
+    let own = sorted_set(|out| problem.features(state, out));
+    let from_parent = sorted_set(|out| problem.features(&nodes[parent].state, out));
     let mut common: Vec<u32> = own
         .iter()
         .copied()
@@ -143,21 +143,12 @@ fn feature_candidates<P: WidthProblem>(
     let mut above = HashSet::new();
     let mut i = nodes[parent].parent;
     while let Some(n) = i {
-        above.extend(sorted_features(problem, &nodes[n].state));
+        above.extend(sorted_set(|out| problem.features(&nodes[n].state, out)));
         i = nodes[n].parent;
     }
 
     common.retain(|f| !above.contains(f));
     common
-}
-
-/// The features of `state`, sorted and deduplicated.
-fn sorted_features<P: WidthProblem>(problem: &P, state: &P::State) -> Vec<u32> {
-    let mut out = Vec::new();
-    problem.features(state, &mut out);
-    out.sort_unstable();
-    out.dedup();
-    out
 }
 
 #[cfg(test)]
