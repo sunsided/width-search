@@ -14,27 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Link the crate to its page on the planning and search site ([#25](https://github.com/sunsided/width-search/pull/25))
 - Note the set-width guarantee and the hardness of certifying width ([#24](https://github.com/sunsided/width-search/pull/24))
 - Describe the audience and installation in the README ([#21](https://github.com/sunsided/width-search/pull/21))
-- Link the crate to its page on the planning and search site
-- Note the set-width guarantee and the hardness of certifying width
-- Describe the audience and installation in the README
 
 ## [0.3.0](https://github.com/sunsided/width-search/compare/v0.2.0...v0.3.0) - 2026-11-21
 
 ### Added
 
-- Expose h_add on SasProblem ([#17](https://github.com/sunsided/width-search/pull/17))
-- Expose the additive heuristic as `SasProblem::h_add` (feature `sas-plus`); `None` marks a relaxed dead end; the value saturates at `u64::MAX`
+- Expose the additive heuristic as `SasProblem::h_add` (feature `sas-plus`); `None` marks a relaxed dead end; the value saturates at `u64::MAX` ([#17](https://github.com/sunsided/width-search/pull/17))
 
 ### Changed
 
 - List the crate in the game-development category ([#20](https://github.com/sunsided/width-search/pull/20))
-- Reject width 0 in BFWS up front and document the panic ([#19](https://github.com/sunsided/width-search/pull/19))
-- Count repeated rule conditions once in h_add ([#18](https://github.com/sunsided/width-search/pull/18))
 
 ### Fixed
 
-- Count a fact that is both a precondition and an effect condition once in `h_add`, not twice
-- `bfws` and `bfws_r` reject width 0 even when the initial state is a goal; `iw`, `bfws` and `bfws_r` document the panic
+- Count a fact that is both a precondition and an effect condition once in `h_add`, not twice ([#18](https://github.com/sunsided/width-search/pull/18))
+- `bfws` and `bfws_r` reject width 0 even when the initial state is a goal; `iw`, `bfws` and `bfws_r` document the panic ([#19](https://github.com/sunsided/width-search/pull/19))
 
 ## [0.2.0](https://github.com/sunsided/width-search/compare/v0.1.1...v0.2.0) - 2026-11-19
 
@@ -49,7 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Compare width-based search to other search algorithms in the README ([#12](https://github.com/sunsided/width-search/pull/12))
 - Cover old states and the goal exception in the width section
 - Explain what "width" means in the README
-- Compare width-based search to other search algorithms in the README
 
 ### Fixed
 
