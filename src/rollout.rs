@@ -22,7 +22,51 @@ use crate::{Node, SearchResult, WidthProblem, extract_plan};
 /// IW(1), it reaches every goal of width 1, but its plans need not be
 /// shortest. `seed` fixes the random child choices.
 pub fn rollout_iw<P: WidthProblem>(problem: &P, seed: u64) -> SearchResult<P::Action> {
-    let mut tree = Tree::new(problem, seed);
+    search(problem, None::<Weights<P>>, seed)
+}
+
+/// π-IW (Junyent, Jonsson & Gómez, ICAPS 2019): [`rollout_iw`] with rollouts
+/// guided by a policy.
+///
+/// When a node is expanded, `policy` gets its state and all of its
+/// `(action, successor)` pairs, and pushes one weight per successor into the
+/// (empty) output vector, for example the action probabilities of a learned
+/// policy. A rollout then moves to an unsolved child with probability
+/// proportional to its weight. Children of weight 0 are picked, uniformly at
+/// random, only once every unsolved sibling has weight 0, so π-IW explores the
+/// same tree as [`rollout_iw`] in a different order and still reaches every
+/// goal of width 1. Constant weights give uniform choices.
+///
+/// The paper also learns the policy from the planner's choices; that loop is
+/// left to the caller. `seed` fixes the random choices.
+///
+/// # Panics
+///
+/// Panics if `policy` pushes a different number of weights than there are
+/// successors, or a weight that is negative or not finite.
+pub fn pi_iw<P, F>(problem: &P, policy: F, seed: u64) -> SearchResult<P::Action>
+where
+    P: WidthProblem,
+    F: FnMut(&P::State, &[(P::Action, P::State)], &mut Vec<f64>),
+{
+    search(problem, Some(policy), seed)
+}
+
+/// The signature of a π-IW policy, as taken by [`pi_iw`].
+type Weights<P> = fn(
+    &<P as WidthProblem>::State,
+    &[(<P as WidthProblem>::Action, <P as WidthProblem>::State)],
+    &mut Vec<f64>,
+);
+
+/// The search behind [`rollout_iw`] (`policy == None`, uniform choices) and
+/// [`pi_iw`].
+fn search<P, F>(problem: &P, policy: Option<F>, seed: u64) -> SearchResult<P::Action>
+where
+    P: WidthProblem,
+    F: FnMut(&P::State, &[(P::Action, P::State)], &mut Vec<f64>),
+{
+    let mut tree = Tree::new(problem, policy, seed);
     let root = problem.initial_state();
     if problem.is_goal(&root) {
         tree.result.plan = Some(Vec::new());
@@ -50,6 +94,9 @@ struct Meta {
     solved: bool,
     /// Whether a rollout has already run the novelty test on this node.
     visited: bool,
+    /// The policy's weight for reaching this node from its parent; finite
+    /// and non-negative. Unused without a policy and at the root.
+    weight: f64,
 }
 
 /// What the novelty test says about the node a rollout just entered.
@@ -61,9 +108,13 @@ enum Verdict {
 }
 
 /// The search tree of a Rollout IW(1) run and its novelty table.
-struct Tree<'p, P: WidthProblem> {
+struct Tree<'p, P: WidthProblem, F> {
     /// The problem being searched.
     problem: &'p P,
+    /// The π-IW policy; `None` picks children uniformly.
+    policy: Option<F>,
+    /// Reused buffer for the policy's weights.
+    weights: Vec<f64>,
     /// Node arena: states and parent links.
     nodes: Vec<Node<P::State, P::Action>>,
     /// Rollout data of each node, same indices as `nodes`.
@@ -80,11 +131,17 @@ struct Tree<'p, P: WidthProblem> {
     result: SearchResult<P::Action>,
 }
 
-impl<'p, P: WidthProblem> Tree<'p, P> {
-    /// An empty tree for `problem`.
-    fn new(problem: &'p P, seed: u64) -> Self {
+impl<'p, P, F> Tree<'p, P, F>
+where
+    P: WidthProblem,
+    F: FnMut(&P::State, &[(P::Action, P::State)], &mut Vec<f64>),
+{
+    /// An empty tree for `problem`, guided by `policy` if set.
+    fn new(problem: &'p P, policy: Option<F>, seed: u64) -> Self {
         Self {
             problem,
+            policy,
+            weights: Vec::new(),
             nodes: Vec::new(),
             meta: Vec::new(),
             depth_of: vec![usize::MAX; problem.num_features()],
@@ -107,7 +164,7 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
             self.depth_of[f as usize] = 0;
         }
 
-        self.push(root, None, None, 0);
+        self.push(root, None, None, 0, 0.0);
         self.meta[0].visited = true;
     }
 
@@ -142,14 +199,16 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         let mut succ = std::mem::take(&mut self.succ);
         succ.clear();
         self.problem.successors(&self.nodes[n].state, &mut succ);
+        self.ask_policy(n, &succ);
 
         let depth = self.meta[n].depth + 1;
         let mut children = Vec::with_capacity(succ.len());
         let mut goal = None;
-        for (action, state) in succ.drain(..) {
+        for (i, (action, state)) in succ.drain(..).enumerate() {
             self.result.generated += 1;
             let is_goal = self.problem.is_goal(&state);
-            let child = self.push(state, Some(n), Some(action), depth);
+            let weight = self.weights.get(i).copied().unwrap_or(1.0);
+            let child = self.push(state, Some(n), Some(action), depth, weight);
             children.push(child);
             if is_goal {
                 goal.get_or_insert(child);
@@ -159,6 +218,30 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         self.succ = succ;
         self.meta[n].children = Some(children);
         goal
+    }
+
+    /// Fills [`Tree::weights`] with the policy's weights for the successors
+    /// `succ` of node `n`; leaves it empty without a policy.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the policy breaks the contract of [`pi_iw`].
+    fn ask_policy(&mut self, n: usize, succ: &[(P::Action, P::State)]) {
+        self.weights.clear();
+        let Some(policy) = self.policy.as_mut() else {
+            return;
+        };
+
+        policy(&self.nodes[n].state, succ, &mut self.weights);
+        assert_eq!(
+            self.weights.len(),
+            succ.len(),
+            "policy must push one weight per successor"
+        );
+        assert!(
+            self.weights.iter().all(|w| w.is_finite() && *w >= 0.0),
+            "policy weights must be finite and non-negative"
+        );
     }
 
     /// Runs the depth-aware novelty test on `n`, updating the depth table
@@ -197,8 +280,50 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         }
     }
 
-    /// A uniformly random child of `n` not labeled solved, if any.
+    /// A child of `n` not labeled solved, if any: drawn by policy weight with
+    /// a policy (uniformly when all unsolved children have weight 0), and
+    /// uniformly without one.
     fn pick_unsolved_child(&mut self, n: usize) -> Option<usize> {
+        if self.policy.is_some() {
+            if let Some(child) = self.pick_weighted_child(n) {
+                return Some(child);
+            }
+        }
+
+        self.pick_uniform_child(n)
+    }
+
+    /// An unsolved child of `n` drawn with probability proportional to its
+    /// weight; `None` if no unsolved child has a positive weight.
+    fn pick_weighted_child(&mut self, n: usize) -> Option<usize> {
+        let unit = self.next_unit();
+        let meta = &self.meta;
+        let candidates = || {
+            meta[n]
+                .children
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .copied()
+                .filter(|&c| !meta[c].solved && meta[c].weight > 0.0)
+        };
+        let total: f64 = candidates().map(|c| meta[c].weight).sum();
+        let last = candidates().next_back()?;
+
+        let mut target = unit * total;
+        for c in candidates() {
+            target -= meta[c].weight;
+            if target < 0.0 {
+                return Some(c);
+            }
+        }
+
+        // Rounding left `target` at or just above 0: take the last candidate.
+        Some(last)
+    }
+
+    /// A uniformly random child of `n` not labeled solved, if any.
+    fn pick_uniform_child(&mut self, n: usize) -> Option<usize> {
         let count_unsolved = |t: &Self| {
             let children = t.meta[n].children.as_deref().unwrap_or_default();
             children.iter().filter(|&&c| !t.meta[c].solved).count()
@@ -242,6 +367,7 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
         parent: Option<usize>,
         action: Option<P::Action>,
         depth: usize,
+        weight: f64,
     ) -> usize {
         self.nodes.push(Node {
             state,
@@ -253,9 +379,16 @@ impl<'p, P: WidthProblem> Tree<'p, P> {
             children: None,
             solved: false,
             visited: false,
+            weight,
         });
 
         self.nodes.len() - 1
+    }
+
+    /// A pseudo-random number in `[0, 1)` with 32 bits of resolution.
+    fn next_unit(&mut self) -> f64 {
+        let high = u32::try_from(self.next_random() >> 32).expect("32 high bits fit a u32");
+        f64::from(high) / 4_294_967_296.0
     }
 
     /// The next `SplitMix64` output.
@@ -313,6 +446,56 @@ mod tests {
             let plan = rollout_iw(&line, seed).plan.expect("width-1 goal");
             assert_eq!(plan, [1; 6], "seed {seed}");
         }
+    }
+
+    /// A policy that only weights the step towards the goal walks straight
+    /// there: every rollout follows it, so only positions 0 to 5 are expanded.
+    #[test]
+    fn a_greedy_policy_walks_straight_to_the_goal() {
+        let line = Line { len: 6 };
+        let towards_goal = |_: &u32, succ: &[(i8, u32)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|&(a, _)| if a > 0 { 1.0 } else { 0.0 }));
+        };
+        for seed in 0..20 {
+            let r = pi_iw(&line, towards_goal, seed);
+            assert_eq!(r.plan.as_deref(), Some(&[1; 6][..]), "seed {seed}");
+            assert_eq!(r.expanded, 6, "seed {seed}");
+        }
+    }
+
+    /// A policy that weights only the step away from the goal still reaches
+    /// it: once the weighted children are solved, the weight-0 ones are tried.
+    #[test]
+    fn zero_weight_children_are_tried_last() {
+        let line = Line { len: 6 };
+        let away = |_: &u32, succ: &[(i8, u32)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|&(a, _)| if a < 0 { 1.0 } else { 0.0 }));
+        };
+        for seed in 0..20 {
+            let plan = pi_iw(&line, away, seed).plan.expect("width-1 goal");
+            assert_eq!(plan, [1; 6], "seed {seed}");
+        }
+    }
+
+    /// A negative weight breaks the policy contract.
+    #[test]
+    #[should_panic(expected = "finite and non-negative")]
+    fn rejects_negative_weights() {
+        let negative = |_: &u32, succ: &[(i8, u32)], out: &mut Vec<f64>| {
+            out.extend(succ.iter().map(|_| -1.0));
+        };
+        pi_iw(&Line { len: 3 }, negative, 0);
+    }
+
+    /// A policy must push exactly one weight per successor.
+    #[test]
+    #[should_panic(expected = "one weight per successor")]
+    fn rejects_a_missing_weight() {
+        pi_iw(
+            &Line { len: 3 },
+            |_: &u32, _: &[(i8, u32)], _: &mut Vec<f64>| {},
+            0,
+        );
     }
 
     /// Without a goal the search ends once the root is solved.
